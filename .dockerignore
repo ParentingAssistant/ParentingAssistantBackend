@@ -1,0 +1,34 @@
+# Version control
+.git
+.gitignore
+
+# Dependencies
+node_modules
+npm-debug.log
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Build output
+dist
+
+# Development files
+*.test.ts
+*.spec.ts
+coverage
+.vscode
+.idea
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Docker
+Dockerfile
+.dockerignore
+
+# Logs
+logs
+*.log 
