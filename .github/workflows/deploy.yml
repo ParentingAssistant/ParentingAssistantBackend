@@ -79,8 +79,45 @@ jobs:
             --min-instances=0
             --max-instances=10
             --platform=managed
+            --timeout=300
+            --startup-cpu-boost
 
       # ✅ Show Service URL After Deployment
       - name: Show Service URL
         run: |
           echo "Service URL: $(gcloud run services describe ${{ env.SERVICE_NAME }} --region ${{ env.REGION }} --format='value(status.url)')"
+
+      # ✅ Fetch and analyze Cloud Run logs
+      - name: Check deployment logs
+        run: |
+          echo "📋 Fetching deployment logs..."
+          echo "----------------------------------------"
+          # Get the latest revision
+          REVISION=$(gcloud run revisions list --service=${{ env.SERVICE_NAME }} --region=${{ env.REGION }} --format='value(name)' --limit=1)
+
+          # Fetch logs with specific severity levels and startup-related filters
+          gcloud logging read "resource.type=cloud_run_revision AND \
+            resource.labels.service_name=${{ env.SERVICE_NAME }} AND \
+            resource.labels.revision_name=${REVISION} AND \
+            (severity>=WARNING OR \
+            textPayload:*error* OR \
+            textPayload:*failed* OR \
+            textPayload:*timeout* OR \
+            textPayload:*crash* OR \
+            textPayload:*killed* OR \
+            textPayload:*❌*)" \
+            --project=${{ secrets.GCP_PROJECT_ID }} \
+            --format="table(timestamp.date('%Y-%m-%d %H:%M:%S'),severity,textPayload)" \
+            --order=asc \
+            --limit=50
+
+          echo "----------------------------------------"
+          echo "✨ Checking container startup status..."
+          # Check if the service is ready
+          STATUS=$(gcloud run services describe ${{ env.SERVICE_NAME }} --region=${{ env.REGION }} --format="value(status.conditions[0].status)")
+          if [[ "$STATUS" == "True" ]]; then
+            echo "✅ Service is running successfully"
+          else
+            echo "❌ Service failed to start properly"
+            exit 1
+          fi
