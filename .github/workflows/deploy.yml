@@ -81,6 +81,37 @@ jobs:
             --platform=managed
             --timeout=300
             --cpu-boost
+            --execution-environment=gen2
+            --port=8080
+            --use-http2
+            --set-env-vars=PORT=8080
+            --set-cloudsql-instances=none
+            --no-use-http2
+
+      # ✅ Wait for deployment to stabilize
+      - name: Wait for deployment
+        run: |
+          echo "Waiting for deployment to stabilize..."
+          sleep 30
+
+          # Get the latest revision
+          REVISION=$(gcloud run revisions list \
+            --service=${{ env.SERVICE_NAME }} \
+            --region=${{ env.REGION }} \
+            --format='value(name)' \
+            --limit=1)
+
+          # Check revision status
+          STATUS=$(gcloud run revisions describe $REVISION \
+            --region=${{ env.REGION }} \
+            --format='value(status.conditions[0].status)')
+
+          if [[ "$STATUS" != "True" ]]; then
+            echo "❌ Deployment failed to stabilize"
+            exit 1
+          fi
+
+          echo "✅ Deployment stabilized successfully"
 
       # ✅ Show Service URL After Deployment
       - name: Show Service URL

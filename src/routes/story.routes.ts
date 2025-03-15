@@ -2,12 +2,13 @@ import { Router, Request, Response } from 'express';
 import { StoryService } from '../services/story.service';
 import { StoryRequest } from '../types/bedtime-story';
 import { authenticateUser } from '../middleware/auth.middleware';
-import { aiLimiter } from '../config/security';
+import { createRateLimiters } from '../config/security';
 
 const router = Router();
 const storyService = StoryService.getInstance();
+const { aiLimiter } = createRateLimiters();
 
-router.post('/generate-bedtime-story', 
+router.post('/generate-bedtime-story',
     authenticateUser,
     aiLimiter,
     async (req: Request, res: Response): Promise<void> => {

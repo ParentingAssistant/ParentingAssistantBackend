@@ -1,23 +1,47 @@
 import * as admin from 'firebase-admin';
 import { AIResponse } from '../types/ai-response';
+import * as fs from 'fs';
+import * as path from 'path';
 
-export const initializeFirebase = () => {
-    try {
+// Initialize Firebase first
+console.log('🔥 Initializing Firebase...');
+
+try {
+    // Try to load service account from file first
+    const serviceAccountPath = path.join(process.cwd(), 'firebase-service-account.json');
+    if (fs.existsSync(serviceAccountPath)) {
+        console.log('📄 Found service account file, using it for initialization...');
+        const serviceAccount = require(serviceAccountPath);
+        admin.initializeApp({
+            credential: admin.credential.cert(serviceAccount)
+        });
+    } else {
+        // Fall back to environment variables
+        console.log('📂 Using environment variables for Firebase initialization...');
+        console.log('📂 Project ID:', process.env.FIREBASE_PROJECT_ID);
+        console.log('📧 Client Email:', process.env.FIREBASE_CLIENT_EMAIL);
+        console.log('🔐 Private Key Length:', process.env.FIREBASE_PRIVATE_KEY?.length);
+        console.log('🔑 Private Key Format:', process.env.FIREBASE_PRIVATE_KEY?.substring(0, 50) + '...');
+
+        const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+        console.log('🔓 Processed Private Key Length:', privateKey?.length);
+        console.log('🔒 Processed Private Key Format:', privateKey?.substring(0, 50) + '...');
+
         admin.initializeApp({
             credential: admin.credential.cert({
                 projectId: process.env.FIREBASE_PROJECT_ID,
-                privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+                privateKey: privateKey,
                 clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
             }),
         });
-
-        console.log('Firebase initialized successfully');
-    } catch (error) {
-        console.error('Error initializing Firebase:', error);
-        process.exit(1);
     }
-};
+    console.log('✅ Firebase initialized successfully');
+} catch (error) {
+    console.error('❌ Error initializing Firebase:', error);
+    process.exit(1);
+}
 
+// Export initialized services
 export const db = admin.firestore();
 
 // Collection reference

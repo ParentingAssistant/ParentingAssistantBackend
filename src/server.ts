@@ -2,10 +2,10 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
-import { initializeFirebase } from './config/firebase';
+import './config/firebase'; // Firebase is initialized when imported
 import { initializeRedis } from './config/redis';
 import { CleanupService } from './services/cleanup.service';
-import { apiLimiter } from './config/security';
+import { createRateLimiters } from './config/security';
 import mealPlanRoutes from './routes/meal-plan.routes';
 import storyRoutes from './routes/story.routes';
 
@@ -18,9 +18,6 @@ const requiredEnvVars = [
     'REDIS_HOST',
     'REDIS_PORT',
     'REDIS_AUTH_STRING',
-    'FIREBASE_PROJECT_ID',
-    'FIREBASE_PRIVATE_KEY',
-    'FIREBASE_CLIENT_EMAIL',
     'OPENAI_API_KEY',
     'API_RATE_LIMIT_WINDOW_MS',
     'API_RATE_LIMIT_MAX_REQUESTS',
@@ -43,74 +40,78 @@ if (missingEnvVars.length > 0) {
 // Log successful environment variable validation
 console.log('✅ All required environment variables are present');
 
-// Initialize Express app
+// Create Express app
 const app = express();
+const port = process.env.PORT || 8080;
 
-// Security middleware
-app.use(helmet());
-app.use(cors());
-app.use(express.json());
+// Initialize services and start server
+async function startServer() {
+    try {
+        // Initialize Redis first
+        console.log('📦 Initializing Redis...');
+        await initializeRedis();
+        
+        // Initialize cleanup service
+        console.log('🧹 Starting cleanup service...');
+        const cleanupService = CleanupService.getInstance();
+        cleanupService.startCleanupScheduler();
 
-// Apply general rate limiting to all routes
-app.use(apiLimiter);
+        // Setup Express middleware after Redis is connected
+        app.use(cors());
+        app.use(helmet());
+        app.use(express.json());
 
-// Initialize services
-try {
-    console.log('🔥 Initializing Firebase...');
-    initializeFirebase();
-    
-    console.log('📦 Initializing Redis...');
-    initializeRedis();
-    
-    console.log('🧹 Starting cleanup service...');
-    const cleanupService = CleanupService.getInstance();
-    cleanupService.startCleanupScheduler();
-} catch (error) {
-    console.error('❌ Failed to initialize services:', error);
-    process.exit(1);
+        // Create rate limiters after Redis is connected
+        const { apiLimiter } = createRateLimiters();
+        app.use(apiLimiter);
+
+        // Root endpoint
+        app.get('/', (req, res) => {
+            res.json({
+                status: 'success',
+                message: 'Parenting Assistant Backend is running',
+                timestamp: new Date().toISOString()
+            });
+        });
+
+        // Health check endpoint
+        app.get('/health', (req, res) => {
+            res.json({
+                status: 'healthy',
+                timestamp: new Date().toISOString()
+            });
+        });
+
+        // Routes
+        app.use('/api/meal-plans', mealPlanRoutes);
+        app.use('/api/stories', storyRoutes);
+
+        // Start server
+        app.listen(port, () => {
+            console.log('\n🚀 Server startup complete!');
+            console.log('---------------------------');
+            console.log(`📡 Server listening on port ${port}`);
+            console.log(`🌍 Root endpoint: http://0.0.0.0:${port}/`);
+            console.log(`💚 Health check: http://0.0.0.0:${port}/health`);
+            console.log(`🔒 Environment: ${process.env.NODE_ENV}`);
+            console.log(`⏰ Startup time: ${new Date().toISOString()}`);
+            console.log('---------------------------\n');
+        });
+
+        // Graceful shutdown
+        process.on('SIGTERM', async () => {
+            console.log('🛑 SIGTERM received. Starting graceful shutdown...');
+            const cleanupService = CleanupService.getInstance();
+            cleanupService.stopCleanupScheduler();
+            // Add any other cleanup here
+            process.exit(0);
+        });
+
+    } catch (error) {
+        console.error('❌ Failed to initialize services:', error);
+        process.exit(1);
+    }
 }
 
-// Graceful shutdown
-process.on('SIGTERM', async () => {
-    console.log('🛑 SIGTERM received. Starting graceful shutdown...');
-    const cleanupService = CleanupService.getInstance();
-    cleanupService.stopCleanupScheduler();
-    // Add any other cleanup here
-    process.exit(0);
-});
-
-// Routes
-app.use('/api', mealPlanRoutes);
-app.use('/api', storyRoutes);
-
-// Health check endpoint for Cloud Run
-app.get('/health', (req, res) => {
-    res.status(200).json({ 
-        status: 'healthy',
-        timestamp: new Date().toISOString()
-    });
-});
-
-// Error handling middleware
-app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
-    console.error('❌ Server error:', err.stack);
-    res.status(500).json({
-        status: 'error',
-        message: 'Internal server error'
-    });
-});
-
-// Start server
-const PORT = Number(process.env.PORT) || 8080; // Default to 8080 for Cloud Run
-const server = app.listen(PORT, '0.0.0.0', () => {
-    console.log('\n🚀 Server startup complete!');
-    console.log('---------------------------');
-    console.log(`📡 Server listening on port ${PORT}`);
-    console.log(`💚 Health check: http://0.0.0.0:${PORT}/health`);
-    console.log(`🔒 Environment: ${process.env.NODE_ENV}`);
-    console.log(`⏰ Startup time: ${new Date().toISOString()}`);
-    console.log('---------------------------\n');
-}).on('error', (error: Error) => {
-    console.error('❌ Failed to start server:', error);
-    process.exit(1);
-}); 
+// Start the server
+startServer(); 

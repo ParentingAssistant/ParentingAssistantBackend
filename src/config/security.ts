@@ -13,38 +13,71 @@ export const SECURITY_CONFIG = {
     }
 };
 
-// General API rate limiter
-export const apiLimiter = rateLimit({
-    windowMs: SECURITY_CONFIG.api.rateLimitWindowMs,
-    max: SECURITY_CONFIG.api.rateLimitMaxRequests,
-    standardHeaders: true,
-    legacyHeaders: false,
-    store: new RedisStore({
-        sendCommand: (...args: string[]) => redisClient.sendCommand(args),
-        prefix: 'rate-limit:api:'
-    }),
-    message: {
-        status: 'error',
-        message: 'Too many requests, please try again later.'
-    }
-});
+// Create rate limiters with memory store fallback
+const createLimiter = (options: {
+    windowMs: number;
+    max: number;
+    prefix: string;
+    keyGenerator?: (req: any) => string;
+}) => {
+    const config = {
+        windowMs: options.windowMs,
+        max: options.max,
+        standardHeaders: true,
+        legacyHeaders: false,
+        skipFailedRequests: true,
+        handler: (req: any, res: any) => {
+            res.status(429).json({
+                status: 'error',
+                message: 'Too many requests, please try again later.',
+                retryAfter: Math.ceil(options.windowMs / 1000)
+            });
+        }
+    };
 
-// AI endpoints rate limiter (stricter)
-export const aiLimiter = rateLimit({
-    windowMs: SECURITY_CONFIG.ai.rateLimitWindowMs,
-    max: SECURITY_CONFIG.ai.rateLimitMaxRequests,
-    standardHeaders: true,
-    legacyHeaders: false,
-    store: new RedisStore({
-        sendCommand: (...args: string[]) => redisClient.sendCommand(args),
-        prefix: 'rate-limit:ai:'
-    }),
-    keyGenerator: (req) => {
-        // Use user ID from Firebase Auth for rate limiting
-        return `user:${req.user?.uid || req.ip}`;
-    },
-    message: {
-        status: 'error',
-        message: 'AI request limit exceeded, please try again later.'
+    // Try to use Redis store if client is ready
+    if (redisClient.isReady) {
+        try {
+            return rateLimit({
+                ...config,
+                store: new RedisStore({
+                    // @ts-ignore - Types are not properly aligned
+                    sendCommand: (...args: string[]) => redisClient.sendCommand(args),
+                    prefix: `rate-limit:${options.prefix}:`,
+                    resetExpiryOnChange: true
+                }),
+                keyGenerator: options.keyGenerator
+            });
+        } catch (error) {
+            console.warn(`Failed to create Redis store for ${options.prefix}, falling back to memory store:`, error);
+        }
+    } else {
+        console.warn(`Redis not ready for ${options.prefix}, using memory store`);
     }
-}); 
+
+    // Fall back to memory store
+    return rateLimit({
+        ...config,
+        keyGenerator: options.keyGenerator
+    });
+};
+
+// Export rate limiters factory
+export const createRateLimiters = () => {
+    // General API rate limiter
+    const apiLimiter = createLimiter({
+        windowMs: SECURITY_CONFIG.api.rateLimitWindowMs,
+        max: SECURITY_CONFIG.api.rateLimitMaxRequests,
+        prefix: 'api'
+    });
+
+    // AI endpoints rate limiter (stricter)
+    const aiLimiter = createLimiter({
+        windowMs: SECURITY_CONFIG.ai.rateLimitWindowMs,
+        max: SECURITY_CONFIG.ai.rateLimitMaxRequests,
+        prefix: 'ai',
+        keyGenerator: (req) => `user:${req.user?.uid || req.ip}`
+    });
+
+    return { apiLimiter, aiLimiter };
+}; 
