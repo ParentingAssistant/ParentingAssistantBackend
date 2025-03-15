@@ -2,10 +2,11 @@ import { Router, Request, Response } from 'express';
 import { MealPlanService } from '../services/meal-plan.service';
 import { MealPlanRequest } from '../types/meal-plan';
 import { authenticateUser } from '../middleware/auth.middleware';
-import { aiLimiter } from '../config/security';
+import { createRateLimiters } from '../config/security';
 
 const router = Router();
 const mealPlanService = MealPlanService.getInstance();
+const { aiLimiter } = createRateLimiters();
 
 router.post('/generate-meal-plan',
     authenticateUser,

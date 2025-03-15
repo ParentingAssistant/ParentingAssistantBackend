@@ -7,6 +7,9 @@ const DEFAULT_CACHE_CONFIG: CacheConfig = {
     namespace: 'ai-responses'
 };
 
+// Track connection status
+let isConnected = false;
+
 const redisClient = createClient({
     url: process.env.REDIS_URL,
     socket: {
@@ -21,21 +24,65 @@ const redisClient = createClient({
 });
 
 export const initializeRedis = async () => {
+    if (isConnected) {
+        console.log('Redis is already connected');
+        return;
+    }
+
     try {
+        // Add event listeners before connecting
+        redisClient.on('error', (error) => {
+            console.error('Redis error:', error);
+            isConnected = false;
+        });
+
+        redisClient.on('connect', () => {
+            console.log('Redis client connected');
+        });
+
+        redisClient.on('ready', () => {
+            console.log('Redis client ready');
+            isConnected = true;
+        });
+
+        redisClient.on('reconnecting', () => {
+            console.log('Redis client reconnecting...');
+            isConnected = false;
+        });
+
+        redisClient.on('end', () => {
+            console.log('Redis connection ended');
+            isConnected = false;
+        });
+
+        // Connect to Redis
         await redisClient.connect();
-        console.log('Redis connected successfully');
+        
+        // Test the connection
+        await redisClient.ping();
+        console.log('Redis connection test successful');
+        isConnected = true;
     } catch (error) {
         console.error('Error connecting to Redis:', error);
-        process.exit(1);
+        isConnected = false;
+        throw error;
     }
 };
 
-redisClient.on('error', (error) => {
-    console.error('Redis error:', error);
-});
-
 // Redis helper functions
 export const redisCache = {
+    // Check connection before operations
+    ensureConnection: async () => {
+        if (!isConnected) {
+            try {
+                await initializeRedis();
+            } catch (error) {
+                console.error('Failed to reconnect to Redis:', error);
+                throw error;
+            }
+        }
+    },
+
     // Generate cache key
     generateKey: (namespace: string, identifier: string): string => {
         return `${namespace}:${identifier}`;
@@ -46,6 +93,7 @@ export const redisCache = {
         response: AIResponse,
         config: Partial<CacheConfig> = {}
     ): Promise<void> => {
+        await redisCache.ensureConnection();
         const { namespace, ttl } = { ...DEFAULT_CACHE_CONFIG, ...config };
         const key = redisCache.generateKey(namespace, response.id);
         
@@ -66,6 +114,7 @@ export const redisCache = {
         id: string,
         namespace: string = DEFAULT_CACHE_CONFIG.namespace
     ): Promise<AIResponse | null> => {
+        await redisCache.ensureConnection();
         const key = redisCache.generateKey(namespace, id);
         
         try {
@@ -82,6 +131,7 @@ export const redisCache = {
         response: AIResponse,
         config: Partial<CacheConfig> = {}
     ): Promise<void> => {
+        await redisCache.ensureConnection();
         const { namespace, ttl } = { ...DEFAULT_CACHE_CONFIG, ...config };
         const promptKey = redisCache.generateKey(namespace, `prompt:${response.prompt}`);
         
@@ -102,6 +152,7 @@ export const redisCache = {
         prompt: string,
         namespace: string = DEFAULT_CACHE_CONFIG.namespace
     ): Promise<AIResponse | null> => {
+        await redisCache.ensureConnection();
         const promptKey = redisCache.generateKey(namespace, `prompt:${prompt}`);
         
         try {
@@ -118,6 +169,7 @@ export const redisCache = {
         id: string,
         namespace: string = DEFAULT_CACHE_CONFIG.namespace
     ): Promise<void> => {
+        await redisCache.ensureConnection();
         const key = redisCache.generateKey(namespace, id);
         
         try {
