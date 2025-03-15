@@ -6,6 +6,7 @@ import dotenv from 'dotenv';
 import { initializeFirebase } from './config/firebase';
 import { initializeRedis } from './config/redis';
 import mealPlanRoutes from './routes/meal-plan.routes';
+import storyRoutes from './routes/story.routes';
 
 // Load environment variables
 dotenv.config();
@@ -31,6 +32,7 @@ initializeRedis();
 
 // Routes
 app.use('/api', mealPlanRoutes);
+app.use('/api', storyRoutes);
 
 // Error handling middleware
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
