@@ -107,38 +107,22 @@ export class CleanupService {
             // Scan for keys with our prefix
             let cursor = 0;
             do {
-                const result = await redisClient.scan(
-                    cursor,
-                    {
-                        MATCH: `${CACHE_CONFIG.redis.keyPrefix}*`,
-                        COUNT: 100
-                    }
-                );
-
-                cursor = parseInt(result.cursor);
-                const keys = result.keys;
-
-                if (keys.length > 0) {
-                    // Get TTL for each key
-                    const pipeline = redisClient.multi();
-                    keys.forEach(key => {
-                        pipeline.ttl(key);
-                    });
-
-                    const ttls = await pipeline.exec();
+                // Use the scanIterator method instead of scan
+                for await (const key of redisClient.scanIterator({
+                    MATCH: `${CACHE_CONFIG.redis.keyPrefix}*`,
+                    COUNT: 100
+                })) {
+                    // Get TTL for the key
+                    const ttl = await redisClient.ttl(key);
                     
-                    // Delete keys with no TTL or expired TTL
-                    const keysToDelete = keys.filter((key, index) => {
-                        const ttl = ttls?.[index] as number;
-                        return ttl === -1 || ttl === -2;
-                    });
-
-                    if (keysToDelete.length > 0) {
-                        await redisClient.del(keysToDelete);
-                        console.log(`Deleted ${keysToDelete.length} expired keys from Redis`);
+                    // Delete key if it has no TTL or is expired
+                    if (ttl === -1 || ttl === -2) {
+                        await redisClient.del(key);
+                        console.log(`Deleted expired key from Redis: ${key}`);
                     }
                 }
-            } while (cursor !== 0);
+                break; // scanIterator handles the cursor internally
+            } while (cursor !== 0); // This is now redundant but kept for structure
         } catch (error) {
             console.error('Error cleaning up Redis:', error);
             throw error;

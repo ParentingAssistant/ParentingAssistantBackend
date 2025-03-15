@@ -77,6 +77,10 @@ Format the response as a structured JSON object matching this interface:
             response_format: { type: "json_object" }
         });
 
+        if (!completion.choices[0]?.message?.content) {
+            throw new Error('Failed to generate story: No content received from OpenAI');
+        }
+
         const storyResponse = JSON.parse(completion.choices[0].message.content) as Story;
         return {
             ...storyResponse,
@@ -88,8 +92,8 @@ Format the response as a structured JSON object matching this interface:
         const cacheKey = this.generateCacheKey(request);
 
         // Try to get from cache first
-        const cachedResponse = await this.cacheService.getResponseByPrompt(cacheKey);
-        if (cachedResponse) {
+        const cachedResponse = await this.cacheService.getResponse(cacheKey);
+        if (cachedResponse && cachedResponse.response) {
             const story = JSON.parse(cachedResponse.response) as Story;
             // Personalize the cached story with the child's name
             return this.personalizeStory(story, request.childName);

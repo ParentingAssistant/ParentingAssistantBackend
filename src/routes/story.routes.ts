@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { StoryService } from '../services/story.service';
 import { StoryRequest } from '../types/bedtime-story';
 import { authenticateUser } from '../middleware/auth.middleware';
@@ -10,7 +10,7 @@ const storyService = StoryService.getInstance();
 router.post('/generate-bedtime-story', 
     authenticateUser,
     aiLimiter,
-    async (req, res) => {
+    async (req: Request, res: Response): Promise<void> => {
         try {
             const request: StoryRequest = {
                 childName: req.body.childName,
@@ -22,18 +22,20 @@ router.post('/generate-bedtime-story',
 
             // Validate required fields
             if (!request.childName || !request.theme) {
-                return res.status(400).json({
+                res.status(400).json({
                     status: 'error',
                     message: 'childName and theme are required fields'
                 });
+                return;
             }
 
             // Validate story length if provided
             if (request.storyLength && !['short', 'medium', 'long'].includes(request.storyLength)) {
-                return res.status(400).json({
+                res.status(400).json({
                     status: 'error',
                     message: 'storyLength must be one of: short, medium, long'
                 });
+                return;
             }
 
             const story = await storyService.generateStory(request);
