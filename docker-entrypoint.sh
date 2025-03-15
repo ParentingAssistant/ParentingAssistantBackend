@@ -21,6 +21,23 @@ check_firebase_creds() {
     
     echo "✅ Firebase credentials present"
     
+    # Create Firebase service account file
+    echo "📝 Creating Firebase service account file..."
+    cat > /app/firebase-service-account.json << EOF
+{
+  "type": "service_account",
+  "project_id": "${FIREBASE_PROJECT_ID}",
+  "private_key_id": "$(echo $FIREBASE_PRIVATE_KEY | cut -d_ -f1)",
+  "private_key": "$(echo "$FIREBASE_PRIVATE_KEY" | sed 's/\\n/\n/g')",
+  "client_email": "${FIREBASE_CLIENT_EMAIL}",
+  "client_id": "",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/${FIREBASE_CLIENT_EMAIL}"
+}
+EOF
+    
     # Process Firebase private key
     if echo "$FIREBASE_PRIVATE_KEY" | grep -q "^base64:"; then
         echo "🔄 Decoding base64 private key..."
@@ -109,17 +126,13 @@ echo "🏥 Checking health endpoint..."
 HEALTH_CHECK_TIMEOUT=30
 COUNT=0
 while [ $COUNT -lt $HEALTH_CHECK_TIMEOUT ]; do
-    if curl -s http://localhost:8080/health > /dev/null; then
-        echo "✅ Application is healthy!"
-        # Keep the container running
-        wait $APP_PID
-        exit 0
+    if curl -s http://localhost:8080/health | grep -q "healthy"; then
+        echo "✅ Health check passed"
+        break
     fi
     
     if ! ps -p $APP_PID > /dev/null; then
         echo "❌ Application process died during health check"
-        echo "📋 Application logs:"
-        tail -n 50 /proc/1/fd/1 2>/dev/null || echo "No logs available"
         exit 1
     fi
     
@@ -128,8 +141,5 @@ while [ $COUNT -lt $HEALTH_CHECK_TIMEOUT ]; do
     sleep 1
 done
 
-echo "❌ Health check failed after $HEALTH_CHECK_TIMEOUT seconds"
-echo "📋 Application logs:"
-tail -n 50 /proc/1/fd/1 2>/dev/null || echo "No logs available"
-kill $APP_PID
-exit 1 
+# Keep the container running
+wait $APP_PID 

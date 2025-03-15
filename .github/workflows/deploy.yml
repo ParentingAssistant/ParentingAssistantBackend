@@ -39,8 +39,16 @@ jobs:
 
       # ✅ Build Docker Image
       - name: Build Docker image
+        env:
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_PRIVATE_KEY: ${{ secrets.FIREBASE_PRIVATE_KEY }}
+          FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
         run: |
-          docker build -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }} .
+          docker build \
+            --build-arg FIREBASE_PROJECT_ID=$FIREBASE_PROJECT_ID \
+            --build-arg FIREBASE_PRIVATE_KEY=$FIREBASE_PRIVATE_KEY \
+            --build-arg FIREBASE_CLIENT_EMAIL=$FIREBASE_CLIENT_EMAIL \
+            -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }} .
           docker tag gcr.io/${{ secrets.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }} gcr.io/${{ secrets.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }}:latest
 
       # ✅ Push Docker Image to GCR
