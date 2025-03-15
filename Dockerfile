@@ -42,16 +42,15 @@ COPY .env.example .env
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 USER appuser
 
-# Expose port
-EXPOSE 3000
+# Expose port 8080 for Cloud Run
+EXPOSE 8080
 
 # Set environment variables
-ENV NODE_ENV=production \
-    PORT=3000
+ENV NODE_ENV=production
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1
+    CMD wget --no-verbose --tries=1 --spider http://localhost:${PORT:-8080}/health || exit 1
 
 # Start the server
 CMD ["node", "dist/server.js"] 

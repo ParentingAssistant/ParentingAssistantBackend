@@ -43,6 +43,11 @@ process.on('SIGTERM', async () => {
 app.use('/api', mealPlanRoutes);
 app.use('/api', storyRoutes);
 
+// Health check endpoint for Cloud Run
+app.get('/health', (req, res) => {
+    res.status(200).json({ status: 'healthy' });
+});
+
 // Error handling middleware
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
     console.error(err.stack);
@@ -53,7 +58,7 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
 });
 
 // Start server
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8080; // Default to 8080 for Cloud Run
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
 }); 
