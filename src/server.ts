@@ -5,6 +5,7 @@ import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import { initializeFirebase } from './config/firebase';
 import { initializeRedis } from './config/redis';
+import mealPlanRoutes from './routes/meal-plan.routes';
 
 // Load environment variables
 dotenv.config();
@@ -28,8 +29,8 @@ app.use(limiter);
 initializeFirebase();
 initializeRedis();
 
-// Routes will be imported here
-// app.use('/api/v1', routes);
+// Routes
+app.use('/api', mealPlanRoutes);
 
 // Error handling middleware
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
