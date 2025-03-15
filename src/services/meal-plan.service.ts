@@ -47,8 +47,14 @@ Please provide a detailed meal plan with the following information for each meal
 - Cooking instructions
 - Basic nutritional information (calories, protein, carbs, fat)
 
-Format the response as a structured JSON object matching this TypeScript interface:
-${JSON.stringify(MealPlan, null, 2)}`;
+Format the response as a structured JSON object with the following properties:
+- days: Array of day objects, each containing:
+  - date: string (e.g., "Day 1")
+  - meals: Array of meal objects, each containing:
+    - name: string
+    - ingredients: string[]
+    - instructions: string
+    - nutrition: { calories: number, protein: number, carbs: number, fat: number }`;
 
         const completion = await openai.chat.completions.create({
             model: "gpt-4",
@@ -65,6 +71,10 @@ ${JSON.stringify(MealPlan, null, 2)}`;
             response_format: { type: "json_object" }
         });
 
+        if (!completion.choices[0]?.message?.content) {
+            throw new Error('Failed to generate meal plan: No content received from OpenAI');
+        }
+
         const mealPlanResponse = JSON.parse(completion.choices[0].message.content) as MealPlan;
         return {
             ...mealPlanResponse,
@@ -80,8 +90,8 @@ ${JSON.stringify(MealPlan, null, 2)}`;
         const cacheKey = this.generateCacheKey(request);
 
         // Try to get from cache first
-        const cachedResponse = await this.cacheService.getResponseByPrompt(cacheKey);
-        if (cachedResponse) {
+        const cachedResponse = await this.cacheService.getResponse(cacheKey);
+        if (cachedResponse && cachedResponse.response) {
             return JSON.parse(cachedResponse.response) as MealPlan;
         }
 

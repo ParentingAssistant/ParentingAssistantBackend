@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { MealPlanService } from '../services/meal-plan.service';
 import { MealPlanRequest } from '../types/meal-plan';
 import { authenticateUser } from '../middleware/auth.middleware';
@@ -10,7 +10,7 @@ const mealPlanService = MealPlanService.getInstance();
 router.post('/generate-meal-plan',
     authenticateUser,
     aiLimiter,
-    async (req, res) => {
+    async (req: Request, res: Response): Promise<void> => {
         try {
             const request: MealPlanRequest = {
                 dietaryPreferences: req.body.dietaryPreferences || [],
@@ -21,10 +21,11 @@ router.post('/generate-meal-plan',
 
             // Validate request
             if (!Array.isArray(request.dietaryPreferences) || !Array.isArray(request.ingredients)) {
-                return res.status(400).json({
+                res.status(400).json({
                     status: 'error',
                     message: 'dietaryPreferences and ingredients must be arrays'
                 });
+                return;
             }
 
             const mealPlan = await mealPlanService.generateMealPlan(request);
