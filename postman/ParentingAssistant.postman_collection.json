@@ -1,0 +1,103 @@
+{
+  "info": {
+    "name": "Parenting Assistant API",
+    "description": "Collection for testing the Parenting Assistant backend API endpoints",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Generate Meal Plan",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{firebase_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"dietaryPreferences\": [\"vegetarian\", \"gluten-free\"],\n  \"ingredients\": [\"quinoa\", \"chickpeas\", \"sweet potato\"],\n  \"daysCount\": 3,\n  \"mealsPerDay\": 2\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/generate-meal-plan",
+          "host": ["{{base_url}}"],
+          "path": ["api", "generate-meal-plan"]
+        },
+        "description": "Generate a personalized meal plan based on preferences"
+      },
+      "response": [
+        {
+          "name": "Success Response",
+          "originalRequest": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dietaryPreferences\": [\"vegetarian\"],\n  \"ingredients\": [\"quinoa\"],\n  \"daysCount\": 1,\n  \"mealsPerDay\": 2\n}"
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json"
+        }
+      ]
+    },
+    {
+      "name": "Generate Bedtime Story",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{firebase_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"childName\": \"Emma\",\n  \"theme\": \"space adventure\",\n  \"ageGroup\": \"5-8\",\n  \"storyLength\": \"medium\",\n  \"includesMorals\": true\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/generate-bedtime-story",
+          "host": ["{{base_url}}"],
+          "path": ["api", "generate-bedtime-story"]
+        },
+        "description": "Generate a personalized bedtime story"
+      },
+      "response": [
+        {
+          "name": "Success Response",
+          "originalRequest": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"childName\": \"Emma\",\n  \"theme\": \"space adventure\",\n  \"ageGroup\": \"5-8\",\n  \"storyLength\": \"medium\",\n  \"includesMorals\": true\n}"
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json"
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "firebase_token",
+      "value": "your-firebase-token"
+    }
+  ]
+} 
