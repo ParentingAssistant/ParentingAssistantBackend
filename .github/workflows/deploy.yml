@@ -80,7 +80,7 @@ jobs:
             --max-instances=10
             --platform=managed
             --timeout=300
-            --startup-cpu-boost
+            --cpu-boost
 
       # ✅ Show Service URL After Deployment
       - name: Show Service URL
