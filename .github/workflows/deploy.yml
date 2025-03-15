@@ -20,32 +20,42 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # ✅ Authenticate with Google Cloud using Service Account Key
+      - name: Authenticate with Google Cloud
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      # ✅ Set up Google Cloud SDK
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
         with:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
-          service_account_key: ${{ secrets.GCP_SA_KEY }}
 
+      # ✅ Configure Docker authentication for Google Container Registry (GCR)
       - name: Configure Docker authentication
         run: |
           gcloud auth configure-docker gcr.io --quiet
 
+      # ✅ Build Docker Image
       - name: Build Docker image
         run: |
-          docker build -t gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }} .
-          docker tag gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }} gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:latest
+          docker build -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }} .
+          docker tag gcr.io/${{ secrets.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }} gcr.io/${{ secrets.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }}:latest
 
+      # ✅ Push Docker Image to GCR
       - name: Push Docker image
         run: |
-          docker push gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
-          docker push gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:latest
+          docker push gcr.io/${{ secrets.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
+          docker push gcr.io/${{ secrets.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }}:latest
 
+      # ✅ Deploy the Container to Cloud Run
       - name: Deploy to Cloud Run
         uses: google-github-actions/deploy-cloudrun@v2
         with:
           service: ${{ env.SERVICE_NAME }}
           region: ${{ env.REGION }}
-          image: gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
+          image: gcr.io/${{ secrets.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
           env_vars: |
             NODE_ENV=production
             PORT=3000
@@ -71,6 +81,7 @@ jobs:
             --max-instances=10
             --platform=managed
 
+      # ✅ Show Service URL After Deployment
       - name: Show Service URL
         run: |
           echo "Service URL: $(gcloud run services describe ${{ env.SERVICE_NAME }} --region ${{ env.REGION }} --format='value(status.url)')"
