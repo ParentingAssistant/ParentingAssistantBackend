@@ -37,22 +37,33 @@ jobs:
         run: |
           gcloud auth configure-docker gcr.io --quiet
 
+      # ✅ Ensure required secrets exist
+      - name: Check Required Secrets
+        run: |
+          REQUIRED_SECRETS=("FIREBASE_PRIVATE_KEY" "FIREBASE_PROJECT_ID" "FIREBASE_CLIENT_EMAIL" "OPENAI_API_KEY")
+          for secret in "${REQUIRED_SECRETS[@]}"; do
+            if [[ -z "${{ secrets[$secret] }}" ]]; then
+              echo "❌ ERROR: Required secret '$secret' is missing from GitHub Secrets."
+              exit 1
+            fi
+          done
+          echo "✅ All required secrets are set."
+
+      # ✅ Escape newlines in FIREBASE_PRIVATE_KEY before passing to Docker
+      - name: Prepare Firebase Private Key
+        run: |
+          echo "✅ Formatting Firebase Private Key"
+          echo "${{ secrets.FIREBASE_PRIVATE_KEY }}" | sed ':a;N;$!ba;s/\n/\\n/g' > firebase_key.txt
+          echo "FIREBASE_PRIVATE_KEY=$(cat firebase_key.txt)" >> $GITHUB_ENV
+
       # ✅ Build Docker Image
       - name: Build Docker image
-        env:
-          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
-          FIREBASE_PRIVATE_KEY: ${{ secrets.FIREBASE_PRIVATE_KEY }}
-          FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
         run: |
-          # Escape newlines in FIREBASE_PRIVATE_KEY
-          ESCAPED_PRIVATE_KEY=$(echo "$FIREBASE_PRIVATE_KEY" | sed 's/\\n/\\\\n/g')
-
-          # Build the image
           docker buildx build \
             --platform linux/amd64 \
-            --build-arg FIREBASE_PROJECT_ID="$FIREBASE_PROJECT_ID" \
-            --build-arg FIREBASE_PRIVATE_KEY="$ESCAPED_PRIVATE_KEY" \
-            --build-arg FIREBASE_CLIENT_EMAIL="$FIREBASE_CLIENT_EMAIL" \
+            --build-arg FIREBASE_PROJECT_ID="${{ secrets.FIREBASE_PROJECT_ID }}" \
+            --build-arg FIREBASE_PRIVATE_KEY="${{ env.FIREBASE_PRIVATE_KEY }}" \
+            --build-arg FIREBASE_CLIENT_EMAIL="${{ secrets.FIREBASE_CLIENT_EMAIL }}" \
             -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }} \
             -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }}:latest \
             .
@@ -73,20 +84,10 @@ jobs:
           env_vars: |
             NODE_ENV=production
             PORT=8080
-            ${{ secrets.REDIS_URL != '' && format('REDIS_URL={0}', secrets.REDIS_URL) }}
-            ${{ secrets.REDIS_HOST != '' && format('REDIS_HOST={0}', secrets.REDIS_HOST) }}
-            ${{ secrets.REDIS_PORT != '' && format('REDIS_PORT={0}', secrets.REDIS_PORT) }}
-            ${{ secrets.REDIS_AUTH_STRING != '' && format('REDIS_AUTH_STRING={0}', secrets.REDIS_AUTH_STRING) }}
-            ${{ secrets.FIREBASE_PROJECT_ID != '' && format('FIREBASE_PROJECT_ID={0}', secrets.FIREBASE_PROJECT_ID) }}
-            ${{ secrets.FIREBASE_PRIVATE_KEY != '' && format('FIREBASE_PRIVATE_KEY={0}', secrets.FIREBASE_PRIVATE_KEY) }}
-            ${{ secrets.FIREBASE_CLIENT_EMAIL != '' && format('FIREBASE_CLIENT_EMAIL={0}', secrets.FIREBASE_CLIENT_EMAIL) }}
-            ${{ secrets.OPENAI_API_KEY != '' && format('OPENAI_API_KEY={0}', secrets.OPENAI_API_KEY) }}
-            ${{ secrets.API_RATE_LIMIT_WINDOW_MS != '' && format('API_RATE_LIMIT_WINDOW_MS={0}', secrets.API_RATE_LIMIT_WINDOW_MS) }}
-            ${{ secrets.API_RATE_LIMIT_MAX_REQUESTS != '' && format('API_RATE_LIMIT_MAX_REQUESTS={0}', secrets.API_RATE_LIMIT_MAX_REQUESTS) }}
-            ${{ secrets.AI_RATE_LIMIT_WINDOW_MS != '' && format('AI_RATE_LIMIT_WINDOW_MS={0}', secrets.AI_RATE_LIMIT_WINDOW_MS) }}
-            ${{ secrets.AI_RATE_LIMIT_MAX_REQUESTS != '' && format('AI_RATE_LIMIT_MAX_REQUESTS={0}', secrets.AI_RATE_LIMIT_MAX_REQUESTS) }}
-            ${{ secrets.CACHE_TTL != '' && format('CACHE_TTL={0}', secrets.CACHE_TTL) }}
-            ${{ secrets.CACHE_NAMESPACE != '' && format('CACHE_NAMESPACE={0}', secrets.CACHE_NAMESPACE) }}
+            FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }}
+            FIREBASE_PRIVATE_KEY=${{ env.FIREBASE_PRIVATE_KEY }}
+            FIREBASE_CLIENT_EMAIL=${{ secrets.FIREBASE_CLIENT_EMAIL }}
+            OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
           flags: |
             --allow-unauthenticated
             --memory=1Gi
@@ -95,17 +96,14 @@ jobs:
             --max-instances=10
             --platform=managed
             --timeout=300
-            --cpu-boost
             --execution-environment=gen2
             --port=8080
             --use-http2
-            --set-cloudsql-instances=none
-            --no-use-http2
 
       # ✅ Wait for deployment to stabilize
       - name: Wait for deployment
         run: |
-          echo "Waiting for deployment to stabilize..."
+          echo "⏳ Waiting for deployment to stabilize..."
           sleep 30
 
           # Get the latest revision
@@ -130,10 +128,10 @@ jobs:
       # ✅ Show Service URL After Deployment
       - name: Show Service URL
         run: |
-          echo "Service URL: $(gcloud run services describe ${{ env.SERVICE_NAME }} --region ${{ env.REGION }} --format='value(status.url)')"
+          echo "🌍 Service URL: $(gcloud run services describe ${{ env.SERVICE_NAME }} --region ${{ env.REGION }} --format='value(status.url)')"
           echo "SERVICE_URL=$(gcloud run services describe ${{ env.SERVICE_NAME }} --region ${{ env.REGION }} --format='value(status.url)')" >> $GITHUB_ENV
 
-      # ✅ Run endpoint tests
+      # ✅ Run Endpoint Tests (Optional)
       - name: Test endpoints
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TEST_TOKEN }}
