@@ -133,7 +133,7 @@ jobs:
             --execution-environment=gen2 \
             --port=8080 \
             --use-http2 \
-            --startup-cpu-boost
+            --cpu-boost
 
           # Store the service URL for later use
           echo "url=$(gcloud run services describe ${{ env.SERVICE_NAME }} --region ${{ env.REGION }} --format='value(status.url)')" >> $GITHUB_OUTPUT
