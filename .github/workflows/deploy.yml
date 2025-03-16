@@ -67,20 +67,20 @@ jobs:
           env_vars: |
             NODE_ENV=production
             PORT=8080
-            REDIS_URL=${{ secrets.REDIS_URL }}
-            REDIS_HOST=${{ secrets.REDIS_HOST }}
-            REDIS_PORT=${{ secrets.REDIS_PORT }}
-            REDIS_AUTH_STRING=${{ secrets.REDIS_AUTH_STRING }}
-            FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }}
-            FIREBASE_PRIVATE_KEY=${{ secrets.FIREBASE_PRIVATE_KEY }}
-            FIREBASE_CLIENT_EMAIL=${{ secrets.FIREBASE_CLIENT_EMAIL }}
-            OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
-            API_RATE_LIMIT_WINDOW_MS=${{ secrets.API_RATE_LIMIT_WINDOW_MS }}
-            API_RATE_LIMIT_MAX_REQUESTS=${{ secrets.API_RATE_LIMIT_MAX_REQUESTS }}
-            AI_RATE_LIMIT_WINDOW_MS=${{ secrets.AI_RATE_LIMIT_WINDOW_MS }}
-            AI_RATE_LIMIT_MAX_REQUESTS=${{ secrets.AI_RATE_LIMIT_MAX_REQUESTS }}
-            CACHE_TTL=${{ secrets.CACHE_TTL }}
-            CACHE_NAMESPACE=${{ secrets.CACHE_NAMESPACE }}
+            ${{ secrets.REDIS_URL != '' && format('REDIS_URL={0}', secrets.REDIS_URL) }}
+            ${{ secrets.REDIS_HOST != '' && format('REDIS_HOST={0}', secrets.REDIS_HOST) }}
+            ${{ secrets.REDIS_PORT != '' && format('REDIS_PORT={0}', secrets.REDIS_PORT) }}
+            ${{ secrets.REDIS_AUTH_STRING != '' && format('REDIS_AUTH_STRING={0}', secrets.REDIS_AUTH_STRING) }}
+            ${{ secrets.FIREBASE_PROJECT_ID != '' && format('FIREBASE_PROJECT_ID={0}', secrets.FIREBASE_PROJECT_ID) }}
+            ${{ secrets.FIREBASE_PRIVATE_KEY != '' && format('FIREBASE_PRIVATE_KEY={0}', secrets.FIREBASE_PRIVATE_KEY) }}
+            ${{ secrets.FIREBASE_CLIENT_EMAIL != '' && format('FIREBASE_CLIENT_EMAIL={0}', secrets.FIREBASE_CLIENT_EMAIL) }}
+            ${{ secrets.OPENAI_API_KEY != '' && format('OPENAI_API_KEY={0}', secrets.OPENAI_API_KEY) }}
+            ${{ secrets.API_RATE_LIMIT_WINDOW_MS != '' && format('API_RATE_LIMIT_WINDOW_MS={0}', secrets.API_RATE_LIMIT_WINDOW_MS) }}
+            ${{ secrets.API_RATE_LIMIT_MAX_REQUESTS != '' && format('API_RATE_LIMIT_MAX_REQUESTS={0}', secrets.API_RATE_LIMIT_MAX_REQUESTS) }}
+            ${{ secrets.AI_RATE_LIMIT_WINDOW_MS != '' && format('AI_RATE_LIMIT_WINDOW_MS={0}', secrets.AI_RATE_LIMIT_WINDOW_MS) }}
+            ${{ secrets.AI_RATE_LIMIT_MAX_REQUESTS != '' && format('AI_RATE_LIMIT_MAX_REQUESTS={0}', secrets.AI_RATE_LIMIT_MAX_REQUESTS) }}
+            ${{ secrets.CACHE_TTL != '' && format('CACHE_TTL={0}', secrets.CACHE_TTL) }}
+            ${{ secrets.CACHE_NAMESPACE != '' && format('CACHE_NAMESPACE={0}', secrets.CACHE_NAMESPACE) }}
           flags: |
             --allow-unauthenticated
             --memory=1Gi
