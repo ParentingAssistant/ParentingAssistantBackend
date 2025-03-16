@@ -125,6 +125,16 @@ jobs:
       - name: Show Service URL
         run: |
           echo "Service URL: $(gcloud run services describe ${{ env.SERVICE_NAME }} --region ${{ env.REGION }} --format='value(status.url)')"
+          echo "SERVICE_URL=$(gcloud run services describe ${{ env.SERVICE_NAME }} --region ${{ env.REGION }} --format='value(status.url)')" >> $GITHUB_ENV
+
+      # ✅ Run endpoint tests
+      - name: Test endpoints
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TEST_TOKEN }}
+        run: |
+          echo "🧪 Running endpoint tests..."
+          chmod +x ./scripts/test-endpoints.sh
+          ./scripts/test-endpoints.sh
 
       # ✅ Fetch and analyze Cloud Run logs
       - name: Check deployment logs
