@@ -66,10 +66,13 @@ jobs:
         run: |
           echo "✅ Formatting Firebase Private Key"
           # Create a properly formatted private key for Docker build
-          echo "${{ secrets.FIREBASE_PRIVATE_KEY }}" > firebase_key.txt
-          echo "FIREBASE_PRIVATE_KEY_DOCKER=$(cat firebase_key.txt | tr '\n' '\\n')" >> $GITHUB_ENV
+          echo '${{ secrets.FIREBASE_PRIVATE_KEY }}' > firebase_key.txt
+          FIREBASE_PRIVATE_KEY_ESCAPED=$(cat firebase_key.txt | tr '\n' '\\n')
+          echo "FIREBASE_PRIVATE_KEY_DOCKER=$FIREBASE_PRIVATE_KEY_ESCAPED" >> $GITHUB_ENV
           # Create a properly formatted private key for Cloud Run
-          echo "FIREBASE_PRIVATE_KEY_DEPLOY=$(cat firebase_key.txt)" >> $GITHUB_ENV
+          echo "FIREBASE_PRIVATE_KEY_DEPLOY<<EOF" >> $GITHUB_ENV
+          cat firebase_key.txt >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
 
       # ✅ Build Docker Image
       - name: Build Docker image
@@ -115,7 +118,7 @@ jobs:
           CACHE_TTL: "3600"
           CACHE_NAMESPACE: "parenting-assistant"
           FIREBASE_PRIVATE_KEY: |
-            ${{ env.FIREBASE_PRIVATE_KEY_DEPLOY }}
+          $(cat firebase_key.txt | sed 's/^/  /')
           EOF
 
           # Deploy using the env file
@@ -132,7 +135,7 @@ jobs:
             --timeout=300 \
             --execution-environment=gen2 \
             --port=8080 \
-            --use-http2 \
+            --no-use-http2 \
             --cpu-boost
 
           # Store the service URL for later use
