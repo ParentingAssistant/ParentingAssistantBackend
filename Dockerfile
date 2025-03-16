@@ -30,10 +30,15 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package*.json ./
 
+# Create healthcheck script
+RUN echo '#!/bin/sh\n\
+    curl -f http://localhost:${PORT:-8080}/health || exit 1\n\
+    ' > /healthcheck.sh && chmod +x /healthcheck.sh
+
 # Create non-root user
 RUN addgroup -S appgroup && \
     adduser -S appuser -G appgroup && \
-    chown -R appuser:appgroup /app
+    chown -R appuser:appgroup /app /healthcheck.sh
 
 # Switch to non-root user
 USER appuser
@@ -45,8 +50,9 @@ ENV NODE_ENV=production \
 # Expose port
 EXPOSE 8080
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s \
-    CMD curl -f http://localhost:8080/health || exit 1
+# Health check with more lenient settings
+HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=3 \
+    CMD /healthcheck.sh
 
+# Start the application
 CMD ["node", "dist/server.js"]
