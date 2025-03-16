@@ -13,6 +13,11 @@ let isConnected = false;
 const redisClient = createClient({
     url: process.env.REDIS_URL,
     socket: {
+        // Only enable TLS for production (Upstash)
+        ...(process.env.REDIS_URL?.includes('upstash.io') ? {
+            tls: true,
+            rejectUnauthorized: true
+        } : {}),
         reconnectStrategy: (retries) => {
             if (retries > 10) {
                 console.error('Max Redis reconnection attempts reached');
