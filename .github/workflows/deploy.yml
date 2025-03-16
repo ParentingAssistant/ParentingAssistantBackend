@@ -98,33 +98,31 @@ jobs:
       - name: Deploy to Cloud Run
         id: deploy
         run: |
-          # Create a temporary env file for deployment
-          cat << EOF > deployment.env
-          NODE_ENV=production
-          PORT=8080
-          REDIS_URL=${{ secrets.REDIS_URL }}
-          REDIS_HOST=${{ secrets.REDIS_HOST }}
-          REDIS_PORT=${{ secrets.REDIS_PORT }}
-          REDIS_AUTH_STRING=${{ secrets.REDIS_AUTH_STRING }}
-          FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }}
-          FIREBASE_CLIENT_EMAIL=${{ secrets.FIREBASE_CLIENT_EMAIL }}
-          OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
-          API_RATE_LIMIT_WINDOW_MS=60000
-          API_RATE_LIMIT_MAX_REQUESTS=100
-          AI_RATE_LIMIT_WINDOW_MS=3600000
-          AI_RATE_LIMIT_MAX_REQUESTS=50
-          CACHE_TTL=3600
-          CACHE_NAMESPACE=parenting-assistant
+          # Create a temporary env file for deployment in YAML format
+          cat << EOF > deployment.yaml
+          NODE_ENV: "production"
+          PORT: "8080"
+          REDIS_URL: "${{ secrets.REDIS_URL }}"
+          REDIS_HOST: "${{ secrets.REDIS_HOST }}"
+          REDIS_PORT: "${{ secrets.REDIS_PORT }}"
+          REDIS_AUTH_STRING: "${{ secrets.REDIS_AUTH_STRING }}"
+          FIREBASE_PROJECT_ID: "${{ secrets.FIREBASE_PROJECT_ID }}"
+          FIREBASE_CLIENT_EMAIL: "${{ secrets.FIREBASE_CLIENT_EMAIL }}"
+          OPENAI_API_KEY: "${{ secrets.OPENAI_API_KEY }}"
+          API_RATE_LIMIT_WINDOW_MS: "60000"
+          API_RATE_LIMIT_MAX_REQUESTS: "100"
+          AI_RATE_LIMIT_WINDOW_MS: "3600000"
+          AI_RATE_LIMIT_MAX_REQUESTS: "50"
+          CACHE_TTL: "3600"
+          CACHE_NAMESPACE: "parenting-assistant"
+          FIREBASE_PRIVATE_KEY: '${{ secrets.FIREBASE_PRIVATE_KEY }}'
           EOF
-
-          # Add Firebase private key separately to handle newlines correctly
-          echo "FIREBASE_PRIVATE_KEY='${{ secrets.FIREBASE_PRIVATE_KEY }}'" >> deployment.env
 
           # Deploy using the env file
           gcloud run deploy ${{ env.SERVICE_NAME }} \
             --image gcr.io/${{ secrets.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }} \
             --region ${{ env.REGION }} \
-            --env-vars-file deployment.env \
+            --env-vars-file deployment.yaml \
             --allow-unauthenticated \
             --memory=1Gi \
             --cpu=1 \
@@ -143,7 +141,7 @@ jobs:
           echo "url=$(gcloud run services describe ${{ env.SERVICE_NAME }} --region ${{ env.REGION }} --format='value(status.url)')" >> $GITHUB_OUTPUT
 
           # Clean up the temporary env file
-          rm deployment.env
+          rm deployment.yaml
 
       # ✅ Print deployment info
       - name: Print Deployment Info
