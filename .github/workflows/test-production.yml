@@ -1,6 +1,3 @@
-<<<<<<< HEAD
- 
-=======
 name: Test Production Endpoints
 
 on:
@@ -90,4 +87,3 @@ jobs:
         if: failure()
         run: |
           echo "❌ Tests failed! Please check the logs for details."
->>>>>>> 7db7fc6 (Add GitHub Actions workflows for testing production endpoints)
