@@ -20,19 +20,34 @@ try {
         console.log('📂 Using environment variables for Firebase initialization...');
         console.log('📂 Project ID:', process.env.FIREBASE_PROJECT_ID);
         console.log('📧 Client Email:', process.env.FIREBASE_CLIENT_EMAIL);
-        console.log('🔐 Private Key Length:', process.env.FIREBASE_PRIVATE_KEY?.length);
-        console.log('🔑 Private Key Format:', process.env.FIREBASE_PRIVATE_KEY?.substring(0, 50) + '...');
 
-        const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
-        console.log('🔓 Processed Private Key Length:', privateKey?.length);
-        console.log('🔒 Processed Private Key Format:', privateKey?.substring(0, 50) + '...');
+        // Handle private key with better error checking
+        const rawPrivateKey = process.env.FIREBASE_PRIVATE_KEY;
+        if (!rawPrivateKey) {
+            throw new Error('FIREBASE_PRIVATE_KEY environment variable is not set');
+        }
+
+        // Process the private key
+        let privateKey = rawPrivateKey;
+        if (privateKey.includes('\\n')) {
+            privateKey = privateKey.split('\\n').join('\n');
+        }
+        console.log('🔐 Private Key Length:', privateKey.length);
+        console.log('🔑 Private Key Format:', privateKey.startsWith('-----BEGIN PRIVATE KEY-----') ? 'Valid PEM format' : 'Invalid format');
+
+        const credential = {
+            projectId: process.env.FIREBASE_PROJECT_ID,
+            clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+            privateKey: privateKey
+        };
+
+        // Validate credential object
+        if (!credential.projectId || !credential.clientEmail || !credential.privateKey) {
+            throw new Error('Missing required Firebase credentials');
+        }
 
         admin.initializeApp({
-            credential: admin.credential.cert({
-                projectId: process.env.FIREBASE_PROJECT_ID,
-                privateKey: privateKey,
-                clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-            }),
+            credential: admin.credential.cert(credential)
         });
     }
     console.log('✅ Firebase initialized successfully');
