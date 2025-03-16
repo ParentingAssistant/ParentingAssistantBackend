@@ -32,6 +32,15 @@ jobs:
         with:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
 
+      # ✅ Verify GCP Configuration
+      - name: Verify GCP Configuration
+        run: |
+          echo "🔍 Verifying GCP configuration..."
+          echo "Current project: $(gcloud config get-value project)"
+          echo "Available services:"
+          gcloud run services list --platform managed --region ${{ env.REGION }}
+          echo "Current account: $(gcloud auth list --filter=status:ACTIVE --format='value(account)')"
+
       # ✅ Configure Docker authentication for Google Container Registry (GCR)
       - name: Configure Docker authentication
         run: |
@@ -87,6 +96,7 @@ jobs:
 
       # ✅ Deploy to Cloud Run
       - name: Deploy to Cloud Run
+        id: deploy
         uses: google-github-actions/deploy-cloudrun@v2
         with:
           service: ${{ env.SERVICE_NAME }}
@@ -124,6 +134,13 @@ jobs:
             --set-startup-probe-period=10
             --set-startup-probe-timeout=5
 
+      # ✅ Print deployment info
+      - name: Print Deployment Info
+        run: |
+          echo "🚀 Deployment URL: ${{ steps.deploy.outputs.url }}"
+          echo "🔄 Revision: ${{ steps.deploy.outputs.revision }}"
+          echo "📝 Project ID: $(gcloud config get-value project)"
+
       # ✅ Wait for deployment to stabilize
       - name: Wait for deployment
         run: |
@@ -137,13 +154,21 @@ jobs:
             --format='value(name)' \
             --limit=1)
 
+          echo "📋 Latest revision: $REVISION"
+
           # Check revision status
           STATUS=$(gcloud run revisions describe $REVISION \
             --region=${{ env.REGION }} \
             --format='value(status.conditions[0].status)')
 
+          echo "📊 Revision status: $STATUS"
+
           if [[ "$STATUS" != "True" ]]; then
             echo "❌ Deployment failed to stabilize"
+            echo "📋 Fetching detailed revision status..."
+            gcloud run revisions describe $REVISION \
+              --region=${{ env.REGION }} \
+              --format='yaml'
             exit 1
           fi
 
@@ -152,8 +177,14 @@ jobs:
       # ✅ Show Service URL After Deployment
       - name: Show Service URL
         run: |
-          echo "🌍 Service URL: $(gcloud run services describe ${{ env.SERVICE_NAME }} --region ${{ env.REGION }} --format='value(status.url)')"
-          echo "SERVICE_URL=$(gcloud run services describe ${{ env.SERVICE_NAME }} --region ${{ env.REGION }} --format='value(status.url)')" >> $GITHUB_ENV
+          SERVICE_URL=$(gcloud run services describe ${{ env.SERVICE_NAME }} --region ${{ env.REGION }} --format='value(status.url)')
+          echo "🌍 Service URL: $SERVICE_URL"
+          echo "SERVICE_URL=$SERVICE_URL" >> $GITHUB_ENV
+
+          echo "📋 Service details:"
+          gcloud run services describe ${{ env.SERVICE_NAME }} \
+            --region ${{ env.REGION }} \
+            --format='yaml'
 
       # ✅ Fetch and analyze Cloud Run logs
       - name: Check deployment logs
@@ -162,6 +193,8 @@ jobs:
           echo "----------------------------------------"
           # Get the latest revision
           REVISION=$(gcloud run revisions list --service=${{ env.SERVICE_NAME }} --region=${{ env.REGION }} --format='value(name)' --limit=1)
+
+          echo "🔍 Checking logs for revision: $REVISION"
 
           # Fetch logs with specific severity levels and startup-related filters
           gcloud logging read "resource.type=cloud_run_revision AND \
@@ -181,11 +214,20 @@ jobs:
 
           echo "----------------------------------------"
           echo "✨ Checking container startup status..."
+
           # Check if the service is ready
           STATUS=$(gcloud run services describe ${{ env.SERVICE_NAME }} --region=${{ env.REGION }} --format="value(status.conditions[0].status)")
           if [[ "$STATUS" == "True" ]]; then
             echo "✅ Service is running successfully"
+            
+            # Try to fetch the health endpoint
+            echo "🏥 Testing health endpoint..."
+            curl -v "$SERVICE_URL/health" || echo "❌ Failed to reach health endpoint"
           else
             echo "❌ Service failed to start properly"
+            echo "📋 Detailed service status:"
+            gcloud run services describe ${{ env.SERVICE_NAME }} \
+              --region=${{ env.REGION }} \
+              --format='yaml'
             exit 1
           fi
