@@ -104,7 +104,6 @@ jobs:
           # Create a temporary env file for deployment in YAML format
           cat << EOF > deployment.yaml
           NODE_ENV: "production"
-          PORT: "8080"
           REDIS_URL: "${{ secrets.REDIS_URL }}"
           REDIS_HOST: "${{ secrets.REDIS_HOST }}"
           REDIS_PORT: "${{ secrets.REDIS_PORT }}"
