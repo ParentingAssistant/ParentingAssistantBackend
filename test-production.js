@@ -3,7 +3,11 @@
 const axios = require('axios');
 
 // Configuration
+<<<<<<< HEAD
 const BASE_URL = 'https://parenting-assistant-backend-h5engjskkq-uc.a.run.app';
+=======
+const BASE_URL = process.env.API_BASE_URL || 'https://parenting-assistant-backend-h5engjskkq-uc.a.run.app';
+>>>>>>> 7db7fc6 (Add GitHub Actions workflows for testing production endpoints)
 const FIREBASE_TOKEN = 'your-firebase-token-here';
 
 // Helper function to make API requests
@@ -85,4 +89,8 @@ async function runTests() {
 // Run the tests
 runTests().catch(error => {
   console.error('❌ Test execution failed:', error);
+<<<<<<< HEAD
+=======
+  process.exit(1); // Exit with error code for CI/CD pipelines
+>>>>>>> 7db7fc6 (Add GitHub Actions workflows for testing production endpoints)
 }); 

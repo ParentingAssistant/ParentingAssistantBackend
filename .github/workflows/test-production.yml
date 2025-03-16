@@ -1,1 +1,93 @@
+<<<<<<< HEAD
  
+=======
+name: Test Production Endpoints
+
+on:
+  # Run after deployment is complete
+  workflow_run:
+    workflows: ["Deploy to Cloud Run"]
+    types:
+      - completed
+    branches:
+      - main
+
+  # Allow manual triggering
+  workflow_dispatch:
+
+jobs:
+  test-endpoints:
+    name: Test Production API Endpoints
+    runs-on: ubuntu-latest
+    # Only run if the deployment was successful
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Test public endpoints (no authentication required)
+      - name: Test public endpoints
+        run: |
+          echo "🧪 Testing public endpoints..."
+          API_BASE_URL="${{ secrets.API_BASE_URL }}" node test-production-no-auth.js
+
+      # Generate Firebase token for authenticated endpoints
+      - name: Generate Firebase token
+        id: generate-token
+        env:
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
+          FIREBASE_PRIVATE_KEY: ${{ secrets.FIREBASE_PRIVATE_KEY }}
+          FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
+        run: |
+          echo "🔑 Generating Firebase token..."
+          # Run the token generation script and capture the output
+          TOKEN_OUTPUT=$(node generate-firebase-token.js)
+
+          # Extract the ID token using grep and awk
+          ID_TOKEN=$(echo "$TOKEN_OUTPUT" | grep "Bearer" | awk '{print $3}')
+
+          if [ -z "$ID_TOKEN" ]; then
+            echo "❌ Failed to generate Firebase token"
+            echo "$TOKEN_OUTPUT"
+            exit 1
+          fi
+
+          echo "✅ Firebase token generated successfully"
+          # Set the token as an output for the next step
+          echo "token=$ID_TOKEN" >> $GITHUB_OUTPUT
+
+      # Update the test script with the generated token
+      - name: Update test script with token
+        run: |
+          echo "🔄 Updating test script with token..."
+          node update-test-token.js ${{ steps.generate-token.outputs.token }}
+
+      # Test authenticated endpoints
+      - name: Test authenticated endpoints
+        run: |
+          echo "🧪 Testing authenticated endpoints..."
+          API_BASE_URL="${{ secrets.API_BASE_URL }}" node test-production.js
+
+      # Notify on success
+      - name: Notify on success
+        if: success()
+        run: |
+          echo "✅ All tests completed successfully!"
+
+      # Notify on failure
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "❌ Tests failed! Please check the logs for details."
+>>>>>>> 7db7fc6 (Add GitHub Actions workflows for testing production endpoints)
