@@ -9,6 +9,9 @@ const DEFAULT_CACHE_CONFIG: CacheConfig = {
 
 // Track connection status
 let isConnected = false;
+let connectionAttempts = 0;
+const MAX_CONNECTION_ATTEMPTS = 5;
+const RETRY_DELAY = 3000; // 3 seconds
 
 const redisClient = createClient({
     url: process.env.REDIS_URL,
@@ -16,19 +19,27 @@ const redisClient = createClient({
         // Only enable TLS for production (Upstash)
         ...(process.env.REDIS_URL?.includes('upstash.io') ? {
             tls: true,
-            rejectUnauthorized: true
-        } : {}),
-        reconnectStrategy: (retries) => {
-            if (retries > 10) {
-                console.error('Max Redis reconnection attempts reached');
-                return new Error('Max reconnection attempts reached');
+            rejectUnauthorized: true,
+            reconnectStrategy: (retries) => {
+                if (retries > 10) {
+                    console.error('Max Redis reconnection attempts reached');
+                    return new Error('Max reconnection attempts reached');
+                }
+                return Math.min(retries * 1000, 10000); // Exponential backoff up to 10 seconds
             }
-            return Math.min(retries * 100, 3000);
-        }
+        } : {
+            reconnectStrategy: (retries) => {
+                if (retries > 10) {
+                    console.error('Max Redis reconnection attempts reached');
+                    return new Error('Max reconnection attempts reached');
+                }
+                return Math.min(retries * 1000, 10000); // Exponential backoff up to 10 seconds
+            }
+        })
     }
 });
 
-export const initializeRedis = async () => {
+export const initializeRedis = async (): Promise<void> => {
     if (isConnected) {
         console.log('Redis is already connected');
         return;
@@ -39,15 +50,34 @@ export const initializeRedis = async () => {
         redisClient.on('error', (error) => {
             console.error('Redis error:', error);
             isConnected = false;
+            connectionAttempts++;
+
+            if (connectionAttempts >= MAX_CONNECTION_ATTEMPTS) {
+                console.error(`Failed to connect to Redis after ${MAX_CONNECTION_ATTEMPTS} attempts`);
+                console.warn('Continuing without Redis - using memory store fallback');
+                return;
+            }
+
+            // Attempt to reconnect
+            setTimeout(async () => {
+                console.log(`Attempting to reconnect to Redis (attempt ${connectionAttempts}/${MAX_CONNECTION_ATTEMPTS})...`);
+                try {
+                    await redisClient.connect();
+                } catch (error) {
+                    console.error('Redis reconnection failed:', error);
+                }
+            }, RETRY_DELAY);
         });
 
         redisClient.on('connect', () => {
             console.log('Redis client connected');
+            connectionAttempts = 0; // Reset connection attempts on successful connection
         });
 
         redisClient.on('ready', () => {
             console.log('Redis client ready');
             isConnected = true;
+            connectionAttempts = 0; // Reset connection attempts on ready
         });
 
         redisClient.on('reconnecting', () => {
@@ -70,7 +100,15 @@ export const initializeRedis = async () => {
     } catch (error) {
         console.error('Error connecting to Redis:', error);
         isConnected = false;
-        throw error;
+        
+        if (connectionAttempts < MAX_CONNECTION_ATTEMPTS) {
+            connectionAttempts++;
+            console.log(`Retrying Redis connection (attempt ${connectionAttempts}/${MAX_CONNECTION_ATTEMPTS})...`);
+            await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+            return initializeRedis();
+        } else {
+            console.warn('Failed to connect to Redis - using memory store fallback');
+        }
     }
 };
 

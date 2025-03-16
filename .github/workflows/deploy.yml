@@ -61,29 +61,32 @@ jobs:
           fi
           echo "✅ All required secrets are set."
 
-      # ✅ Escape newlines in FIREBASE_PRIVATE_KEY before passing to Docker
+      # ✅ Prepare Firebase Private Key
       - name: Prepare Firebase Private Key
         run: |
           echo "✅ Formatting Firebase Private Key"
-          echo "${{ secrets.FIREBASE_PRIVATE_KEY }}" | sed ':a;N;$!ba;s/\n/\\n/g' > firebase_key.txt
-          echo "FIREBASE_PRIVATE_KEY=$(cat firebase_key.txt)" >> $GITHUB_ENV
+          # Create a properly formatted private key for Docker build
+          echo '${{ secrets.FIREBASE_PRIVATE_KEY }}' > firebase_key.txt
+          # For Docker build - escape newlines and quotes
+          FIREBASE_PRIVATE_KEY_ESCAPED=$(cat firebase_key.txt | awk '{printf "%s\\\\n", $0}')
+          echo "FIREBASE_PRIVATE_KEY_DOCKER=${FIREBASE_PRIVATE_KEY_ESCAPED}" >> $GITHUB_ENV
+          # For Cloud Run deployment
+          echo "FIREBASE_PRIVATE_KEY_DEPLOY<<EOF" >> $GITHUB_ENV
+          cat firebase_key.txt >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
 
       # ✅ Build Docker Image
       - name: Build Docker image
         env:
           FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
-          FIREBASE_PRIVATE_KEY: ${{ secrets.FIREBASE_PRIVATE_KEY }}
           FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
         run: |
-          # Escape newlines in FIREBASE_PRIVATE_KEY
-          ESCAPED_PRIVATE_KEY=$(echo "$FIREBASE_PRIVATE_KEY" | sed 's/\\n/\\\\n/g')
-
-          # Build the image
-          docker buildx build \
+          # Build the image with properly escaped private key
+          docker build \
             --platform linux/amd64 \
-            --build-arg FIREBASE_PROJECT_ID="$FIREBASE_PROJECT_ID" \
-            --build-arg FIREBASE_PRIVATE_KEY="$ESCAPED_PRIVATE_KEY" \
-            --build-arg FIREBASE_CLIENT_EMAIL="$FIREBASE_CLIENT_EMAIL" \
+            --build-arg FIREBASE_PROJECT_ID="${{ secrets.FIREBASE_PROJECT_ID }}" \
+            --build-arg FIREBASE_CLIENT_EMAIL="${{ secrets.FIREBASE_CLIENT_EMAIL }}" \
+            --build-arg FIREBASE_PRIVATE_KEY="${{ env.FIREBASE_PRIVATE_KEY_DOCKER }}" \
             -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }} \
             -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }}:latest \
             .
@@ -114,7 +117,8 @@ jobs:
           AI_RATE_LIMIT_MAX_REQUESTS: "50"
           CACHE_TTL: "3600"
           CACHE_NAMESPACE: "parenting-assistant"
-          FIREBASE_PRIVATE_KEY: '${{ secrets.FIREBASE_PRIVATE_KEY }}'
+          FIREBASE_PRIVATE_KEY: |
+            $(sed 's/^/            /' firebase_key.txt)
           EOF
 
           # Deploy using the env file
@@ -131,7 +135,7 @@ jobs:
             --timeout=300 \
             --execution-environment=gen2 \
             --port=8080 \
-            --use-http2 \
+            --no-use-http2 \
             --cpu-boost
 
           # Store the service URL for later use
