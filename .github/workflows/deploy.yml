@@ -44,12 +44,18 @@ jobs:
           FIREBASE_PRIVATE_KEY: ${{ secrets.FIREBASE_PRIVATE_KEY }}
           FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
         run: |
-          docker build \
-            --build-arg FIREBASE_PROJECT_ID=$FIREBASE_PROJECT_ID \
-            --build-arg FIREBASE_PRIVATE_KEY=$FIREBASE_PRIVATE_KEY \
-            --build-arg FIREBASE_CLIENT_EMAIL=$FIREBASE_CLIENT_EMAIL \
-            -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }} .
-          docker tag gcr.io/${{ secrets.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }} gcr.io/${{ secrets.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }}:latest
+          # Escape newlines in FIREBASE_PRIVATE_KEY
+          ESCAPED_PRIVATE_KEY=$(echo "$FIREBASE_PRIVATE_KEY" | sed 's/\\n/\\\\n/g')
+
+          # Build the image
+          docker buildx build \
+            --platform linux/amd64 \
+            --build-arg FIREBASE_PROJECT_ID="$FIREBASE_PROJECT_ID" \
+            --build-arg FIREBASE_PRIVATE_KEY="$ESCAPED_PRIVATE_KEY" \
+            --build-arg FIREBASE_CLIENT_EMAIL="$FIREBASE_CLIENT_EMAIL" \
+            -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }} \
+            -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }}:latest \
+            .
 
       # ✅ Push Docker Image to GCR
       - name: Push Docker image
