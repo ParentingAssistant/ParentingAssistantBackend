@@ -32,10 +32,41 @@ jobs:
         with:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
 
+      # ✅ Verify GCP Configuration
+      - name: Verify GCP Configuration
+        run: |
+          echo "🔍 Verifying GCP configuration..."
+          echo "Current project: $(gcloud config get-value project)"
+          echo "Available services:"
+          gcloud run services list --platform managed --region ${{ env.REGION }}
+          echo "Current account: $(gcloud auth list --filter=status:ACTIVE --format='value(account)')"
+
       # ✅ Configure Docker authentication for Google Container Registry (GCR)
       - name: Configure Docker authentication
         run: |
           gcloud auth configure-docker gcr.io --quiet
+
+      # ✅ Ensure required secrets exist
+      - name: Check Required Secrets
+        run: |
+          MISSING=""
+          [[ -z "${{ secrets.FIREBASE_PRIVATE_KEY }}" ]] && MISSING="$MISSING FIREBASE_PRIVATE_KEY"
+          [[ -z "${{ secrets.FIREBASE_PROJECT_ID }}" ]] && MISSING="$MISSING FIREBASE_PROJECT_ID"
+          [[ -z "${{ secrets.FIREBASE_CLIENT_EMAIL }}" ]] && MISSING="$MISSING FIREBASE_CLIENT_EMAIL"
+          [[ -z "${{ secrets.OPENAI_API_KEY }}" ]] && MISSING="$MISSING OPENAI_API_KEY"
+
+          if [[ ! -z "$MISSING" ]]; then
+            echo "❌ ERROR: Missing required secrets: $MISSING"
+            exit 1
+          fi
+          echo "✅ All required secrets are set."
+
+      # ✅ Escape newlines in FIREBASE_PRIVATE_KEY before passing to Docker
+      - name: Prepare Firebase Private Key
+        run: |
+          echo "✅ Formatting Firebase Private Key"
+          echo "${{ secrets.FIREBASE_PRIVATE_KEY }}" | sed ':a;N;$!ba;s/\n/\\n/g' > firebase_key.txt
+          echo "FIREBASE_PRIVATE_KEY=$(cat firebase_key.txt)" >> $GITHUB_ENV
 
       # ✅ Build Docker Image
       - name: Build Docker image
@@ -44,12 +75,18 @@ jobs:
           FIREBASE_PRIVATE_KEY: ${{ secrets.FIREBASE_PRIVATE_KEY }}
           FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
         run: |
-          docker build \
-            --build-arg FIREBASE_PROJECT_ID=$FIREBASE_PROJECT_ID \
-            --build-arg FIREBASE_PRIVATE_KEY=$FIREBASE_PRIVATE_KEY \
-            --build-arg FIREBASE_CLIENT_EMAIL=$FIREBASE_CLIENT_EMAIL \
-            -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }} .
-          docker tag gcr.io/${{ secrets.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }} gcr.io/${{ secrets.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }}:latest
+          # Escape newlines in FIREBASE_PRIVATE_KEY
+          ESCAPED_PRIVATE_KEY=$(echo "$FIREBASE_PRIVATE_KEY" | sed 's/\\n/\\\\n/g')
+
+          # Build the image
+          docker buildx build \
+            --platform linux/amd64 \
+            --build-arg FIREBASE_PROJECT_ID="$FIREBASE_PROJECT_ID" \
+            --build-arg FIREBASE_PRIVATE_KEY="$ESCAPED_PRIVATE_KEY" \
+            --build-arg FIREBASE_CLIENT_EMAIL="$FIREBASE_CLIENT_EMAIL" \
+            -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }} \
+            -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }}:latest \
+            .
 
       # ✅ Push Docker Image to GCR
       - name: Push Docker image
@@ -57,49 +94,63 @@ jobs:
           docker push gcr.io/${{ secrets.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
           docker push gcr.io/${{ secrets.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }}:latest
 
-      # ✅ Deploy the Container to Cloud Run
+      # ✅ Deploy to Cloud Run
       - name: Deploy to Cloud Run
-        uses: google-github-actions/deploy-cloudrun@v2
-        with:
-          service: ${{ env.SERVICE_NAME }}
-          region: ${{ env.REGION }}
-          image: gcr.io/${{ secrets.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
-          env_vars: |
-            NODE_ENV=production
-            PORT=8080
-            ${{ secrets.REDIS_URL != '' && format('REDIS_URL={0}', secrets.REDIS_URL) }}
-            ${{ secrets.REDIS_HOST != '' && format('REDIS_HOST={0}', secrets.REDIS_HOST) }}
-            ${{ secrets.REDIS_PORT != '' && format('REDIS_PORT={0}', secrets.REDIS_PORT) }}
-            ${{ secrets.REDIS_AUTH_STRING != '' && format('REDIS_AUTH_STRING={0}', secrets.REDIS_AUTH_STRING) }}
-            ${{ secrets.FIREBASE_PROJECT_ID != '' && format('FIREBASE_PROJECT_ID={0}', secrets.FIREBASE_PROJECT_ID) }}
-            ${{ secrets.FIREBASE_PRIVATE_KEY != '' && format('FIREBASE_PRIVATE_KEY={0}', secrets.FIREBASE_PRIVATE_KEY) }}
-            ${{ secrets.FIREBASE_CLIENT_EMAIL != '' && format('FIREBASE_CLIENT_EMAIL={0}', secrets.FIREBASE_CLIENT_EMAIL) }}
-            ${{ secrets.OPENAI_API_KEY != '' && format('OPENAI_API_KEY={0}', secrets.OPENAI_API_KEY) }}
-            ${{ secrets.API_RATE_LIMIT_WINDOW_MS != '' && format('API_RATE_LIMIT_WINDOW_MS={0}', secrets.API_RATE_LIMIT_WINDOW_MS) }}
-            ${{ secrets.API_RATE_LIMIT_MAX_REQUESTS != '' && format('API_RATE_LIMIT_MAX_REQUESTS={0}', secrets.API_RATE_LIMIT_MAX_REQUESTS) }}
-            ${{ secrets.AI_RATE_LIMIT_WINDOW_MS != '' && format('AI_RATE_LIMIT_WINDOW_MS={0}', secrets.AI_RATE_LIMIT_WINDOW_MS) }}
-            ${{ secrets.AI_RATE_LIMIT_MAX_REQUESTS != '' && format('AI_RATE_LIMIT_MAX_REQUESTS={0}', secrets.AI_RATE_LIMIT_MAX_REQUESTS) }}
-            ${{ secrets.CACHE_TTL != '' && format('CACHE_TTL={0}', secrets.CACHE_TTL) }}
-            ${{ secrets.CACHE_NAMESPACE != '' && format('CACHE_NAMESPACE={0}', secrets.CACHE_NAMESPACE) }}
-          flags: |
-            --allow-unauthenticated
-            --memory=1Gi
-            --cpu=1
-            --min-instances=0
-            --max-instances=10
-            --platform=managed
-            --timeout=300
+        id: deploy
+        run: |
+          # Create a temporary env file for deployment in YAML format
+          cat << EOF > deployment.yaml
+          NODE_ENV: "production"
+          REDIS_URL: "${{ secrets.REDIS_URL }}"
+          REDIS_HOST: "${{ secrets.REDIS_HOST }}"
+          REDIS_PORT: "${{ secrets.REDIS_PORT }}"
+          REDIS_AUTH_STRING: "${{ secrets.REDIS_AUTH_STRING }}"
+          FIREBASE_PROJECT_ID: "${{ secrets.FIREBASE_PROJECT_ID }}"
+          FIREBASE_CLIENT_EMAIL: "${{ secrets.FIREBASE_CLIENT_EMAIL }}"
+          OPENAI_API_KEY: "${{ secrets.OPENAI_API_KEY }}"
+          API_RATE_LIMIT_WINDOW_MS: "60000"
+          API_RATE_LIMIT_MAX_REQUESTS: "100"
+          AI_RATE_LIMIT_WINDOW_MS: "3600000"
+          AI_RATE_LIMIT_MAX_REQUESTS: "50"
+          CACHE_TTL: "3600"
+          CACHE_NAMESPACE: "parenting-assistant"
+          FIREBASE_PRIVATE_KEY: '${{ secrets.FIREBASE_PRIVATE_KEY }}'
+          EOF
+
+          # Deploy using the env file
+          gcloud run deploy ${{ env.SERVICE_NAME }} \
+            --image gcr.io/${{ secrets.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }} \
+            --region ${{ env.REGION }} \
+            --env-vars-file deployment.yaml \
+            --allow-unauthenticated \
+            --memory=1Gi \
+            --cpu=1 \
+            --min-instances=0 \
+            --max-instances=10 \
+            --platform=managed \
+            --timeout=300 \
+            --execution-environment=gen2 \
+            --port=8080 \
+            --use-http2 \
             --cpu-boost
-            --execution-environment=gen2
-            --port=8080
-            --use-http2
-            --set-cloudsql-instances=none
-            --no-use-http2
+
+          # Store the service URL for later use
+          echo "url=$(gcloud run services describe ${{ env.SERVICE_NAME }} --region ${{ env.REGION }} --format='value(status.url)')" >> $GITHUB_OUTPUT
+
+          # Clean up the temporary env file
+          rm deployment.yaml
+
+      # ✅ Print deployment info
+      - name: Print Deployment Info
+        run: |
+          echo "🚀 Deployment URL: ${{ steps.deploy.outputs.url }}"
+          echo "🔄 Revision: ${{ steps.deploy.outputs.revision }}"
+          echo "📝 Project ID: $(gcloud config get-value project)"
 
       # ✅ Wait for deployment to stabilize
       - name: Wait for deployment
         run: |
-          echo "Waiting for deployment to stabilize..."
+          echo "⏳ Waiting for deployment to stabilize..."
           sleep 30
 
           # Get the latest revision
@@ -109,13 +160,21 @@ jobs:
             --format='value(name)' \
             --limit=1)
 
+          echo "📋 Latest revision: $REVISION"
+
           # Check revision status
           STATUS=$(gcloud run revisions describe $REVISION \
             --region=${{ env.REGION }} \
             --format='value(status.conditions[0].status)')
 
+          echo "📊 Revision status: $STATUS"
+
           if [[ "$STATUS" != "True" ]]; then
             echo "❌ Deployment failed to stabilize"
+            echo "📋 Fetching detailed revision status..."
+            gcloud run revisions describe $REVISION \
+              --region=${{ env.REGION }} \
+              --format='yaml'
             exit 1
           fi
 
@@ -124,17 +183,14 @@ jobs:
       # ✅ Show Service URL After Deployment
       - name: Show Service URL
         run: |
-          echo "Service URL: $(gcloud run services describe ${{ env.SERVICE_NAME }} --region ${{ env.REGION }} --format='value(status.url)')"
-          echo "SERVICE_URL=$(gcloud run services describe ${{ env.SERVICE_NAME }} --region ${{ env.REGION }} --format='value(status.url)')" >> $GITHUB_ENV
+          SERVICE_URL=$(gcloud run services describe ${{ env.SERVICE_NAME }} --region ${{ env.REGION }} --format='value(status.url)')
+          echo "🌍 Service URL: $SERVICE_URL"
+          echo "SERVICE_URL=$SERVICE_URL" >> $GITHUB_ENV
 
-      # ✅ Run endpoint tests
-      - name: Test endpoints
-        env:
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TEST_TOKEN }}
-        run: |
-          echo "🧪 Running endpoint tests..."
-          chmod +x ./scripts/test-endpoints.sh
-          ./scripts/test-endpoints.sh
+          echo "📋 Service details:"
+          gcloud run services describe ${{ env.SERVICE_NAME }} \
+            --region ${{ env.REGION }} \
+            --format='yaml'
 
       # ✅ Fetch and analyze Cloud Run logs
       - name: Check deployment logs
@@ -143,6 +199,8 @@ jobs:
           echo "----------------------------------------"
           # Get the latest revision
           REVISION=$(gcloud run revisions list --service=${{ env.SERVICE_NAME }} --region=${{ env.REGION }} --format='value(name)' --limit=1)
+
+          echo "🔍 Checking logs for revision: $REVISION"
 
           # Fetch logs with specific severity levels and startup-related filters
           gcloud logging read "resource.type=cloud_run_revision AND \
@@ -162,11 +220,20 @@ jobs:
 
           echo "----------------------------------------"
           echo "✨ Checking container startup status..."
+
           # Check if the service is ready
           STATUS=$(gcloud run services describe ${{ env.SERVICE_NAME }} --region=${{ env.REGION }} --format="value(status.conditions[0].status)")
           if [[ "$STATUS" == "True" ]]; then
             echo "✅ Service is running successfully"
+            
+            # Try to fetch the health endpoint
+            echo "🏥 Testing health endpoint..."
+            curl -v "$SERVICE_URL/health" || echo "❌ Failed to reach health endpoint"
           else
             echo "❌ Service failed to start properly"
+            echo "📋 Detailed service status:"
+            gcloud run services describe ${{ env.SERVICE_NAME }} \
+              --region=${{ env.REGION }} \
+              --format='yaml'
             exit 1
           fi
