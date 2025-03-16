@@ -67,9 +67,10 @@ jobs:
           echo "✅ Formatting Firebase Private Key"
           # Create a properly formatted private key for Docker build
           echo '${{ secrets.FIREBASE_PRIVATE_KEY }}' > firebase_key.txt
-          FIREBASE_PRIVATE_KEY_ESCAPED=$(cat firebase_key.txt | tr '\n' '\\n')
-          echo "FIREBASE_PRIVATE_KEY_DOCKER=$FIREBASE_PRIVATE_KEY_ESCAPED" >> $GITHUB_ENV
-          # Create a properly formatted private key for Cloud Run
+          # For Docker build - escape newlines and quotes
+          FIREBASE_PRIVATE_KEY_ESCAPED=$(cat firebase_key.txt | awk '{printf "%s\\n", $0}')
+          echo "FIREBASE_PRIVATE_KEY_DOCKER=${FIREBASE_PRIVATE_KEY_ESCAPED}" >> $GITHUB_ENV
+          # For Cloud Run deployment
           echo "FIREBASE_PRIVATE_KEY_DEPLOY<<EOF" >> $GITHUB_ENV
           cat firebase_key.txt >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
@@ -80,15 +81,21 @@ jobs:
           FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
           FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
         run: |
-          # Build the image with properly escaped private key
+          # Create a temporary build-args file
+          echo "FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }}" > build-args.env
+          echo "FIREBASE_CLIENT_EMAIL=${{ secrets.FIREBASE_CLIENT_EMAIL }}" >> build-args.env
+          echo "FIREBASE_PRIVATE_KEY=${{ env.FIREBASE_PRIVATE_KEY_DOCKER }}" >> build-args.env
+
+          # Build the image using the build-args file
           docker buildx build \
             --platform linux/amd64 \
-            --build-arg FIREBASE_PROJECT_ID="${{ secrets.FIREBASE_PROJECT_ID }}" \
-            --build-arg FIREBASE_PRIVATE_KEY="${{ env.FIREBASE_PRIVATE_KEY_DOCKER }}" \
-            --build-arg FIREBASE_CLIENT_EMAIL="${{ secrets.FIREBASE_CLIENT_EMAIL }}" \
+            --build-arg-file build-args.env \
             -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }} \
             -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }}:latest \
             .
+
+          # Clean up
+          rm build-args.env
 
       # ✅ Push Docker Image to GCR
       - name: Push Docker image
@@ -118,7 +125,7 @@ jobs:
           CACHE_TTL: "3600"
           CACHE_NAMESPACE: "parenting-assistant"
           FIREBASE_PRIVATE_KEY: |
-          $(cat firebase_key.txt | sed 's/^/  /')
+            $(sed 's/^/            /' firebase_key.txt)
           EOF
 
           # Deploy using the env file
