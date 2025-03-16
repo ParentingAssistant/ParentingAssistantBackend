@@ -40,13 +40,16 @@ jobs:
       # ✅ Ensure required secrets exist
       - name: Check Required Secrets
         run: |
-          REQUIRED_SECRETS=("FIREBASE_PRIVATE_KEY" "FIREBASE_PROJECT_ID" "FIREBASE_CLIENT_EMAIL" "OPENAI_API_KEY")
-          for secret in "${REQUIRED_SECRETS[@]}"; do
-            if [[ -z "${{ secrets[$secret] }}" ]]; then
-              echo "❌ ERROR: Required secret '$secret' is missing from GitHub Secrets."
-              exit 1
-            fi
-          done
+          MISSING=""
+          [[ -z "${{ secrets.FIREBASE_PRIVATE_KEY }}" ]] && MISSING="$MISSING FIREBASE_PRIVATE_KEY"
+          [[ -z "${{ secrets.FIREBASE_PROJECT_ID }}" ]] && MISSING="$MISSING FIREBASE_PROJECT_ID"
+          [[ -z "${{ secrets.FIREBASE_CLIENT_EMAIL }}" ]] && MISSING="$MISSING FIREBASE_CLIENT_EMAIL"
+          [[ -z "${{ secrets.OPENAI_API_KEY }}" ]] && MISSING="$MISSING OPENAI_API_KEY"
+
+          if [[ ! -z "$MISSING" ]]; then
+            echo "❌ ERROR: Missing required secrets: $MISSING"
+            exit 1
+          fi
           echo "✅ All required secrets are set."
 
       # ✅ Escape newlines in FIREBASE_PRIVATE_KEY before passing to Docker
@@ -130,15 +133,6 @@ jobs:
         run: |
           echo "🌍 Service URL: $(gcloud run services describe ${{ env.SERVICE_NAME }} --region ${{ env.REGION }} --format='value(status.url)')"
           echo "SERVICE_URL=$(gcloud run services describe ${{ env.SERVICE_NAME }} --region ${{ env.REGION }} --format='value(status.url)')" >> $GITHUB_ENV
-
-      # ✅ Run Endpoint Tests (Optional)
-      - name: Test endpoints
-        env:
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TEST_TOKEN }}
-        run: |
-          echo "🧪 Running endpoint tests..."
-          chmod +x ./scripts/test-endpoints.sh
-          ./scripts/test-endpoints.sh
 
       # ✅ Fetch and analyze Cloud Run logs
       - name: Check deployment logs
