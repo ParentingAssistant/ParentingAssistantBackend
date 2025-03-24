@@ -37,6 +37,49 @@ Both workflows require the following secrets to be set in your GitHub repository
 2. **API Base URL** (optional):
    - `API_BASE_URL`: The base URL of your production API (defaults to the hardcoded URL in the test scripts if not provided)
 
+## Adding the Required Secrets
+
+If you're seeing errors related to missing secrets, follow these steps to add them to your GitHub repository:
+
+1. Go to your GitHub repository
+2. Click on "Settings" tab
+3. In the left sidebar, click on "Secrets and variables" > "Actions"
+4. Click on "New repository secret"
+5. Add each of the required secrets:
+
+   - **FIREBASE_PROJECT_ID**:
+
+     - Name: `FIREBASE_PROJECT_ID`
+     - Value: Your Firebase project ID (e.g., `parenting-assistant`)
+
+   - **FIREBASE_CLIENT_EMAIL**:
+
+     - Name: `FIREBASE_CLIENT_EMAIL`
+     - Value: Your Firebase service account email (e.g., `firebase-adminsdk-xxxxx@parenting-assistant.iam.gserviceaccount.com`)
+
+   - **FIREBASE_PRIVATE_KEY**:
+
+     - Name: `FIREBASE_PRIVATE_KEY`
+     - Value: Your Firebase private key, including the BEGIN and END lines and all newlines
+
+   - **FIREBASE_API_KEY**:
+
+     - Name: `FIREBASE_API_KEY`
+     - Value: Your Firebase Web API Key (found in the Firebase console under Project Settings > General > Web API Key)
+
+   - **API_BASE_URL** (optional):
+     - Name: `API_BASE_URL`
+     - Value: The base URL of your production API (e.g., `https://parenting-assistant-backend-h5engjskkq-uc.a.run.app`)
+
+### Finding Your Firebase Web API Key
+
+1. Go to the [Firebase Console](https://console.firebase.google.com/)
+2. Select your project
+3. Click on the gear icon (⚙️) next to "Project Overview" to open Project Settings
+4. In the "General" tab, scroll down to the "Your apps" section
+5. Under "Web apps", you'll find your "Web API Key"
+6. Copy this key and add it as the `FIREBASE_API_KEY` secret in your GitHub repository
+
 ## How to Run the Manual Workflow
 
 1. Go to the "Actions" tab in your GitHub repository

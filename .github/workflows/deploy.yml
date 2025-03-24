@@ -193,7 +193,7 @@ jobs:
 
           echo "📋 Service details:"
           gcloud run services describe ${{ env.SERVICE_NAME }} \
-            --region ${{ env.REGION }} \
+            --region=${{ env.REGION }} \
             --format='yaml'
 
       # ✅ Fetch and analyze Cloud Run logs
