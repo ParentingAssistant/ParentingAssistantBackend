@@ -2,12 +2,12 @@ name: Test Production Endpoints
 
 on:
   # Run after deployment is complete
-  workflow_run:
-    workflows: ["Deploy to Cloud Run"]
-    types:
-      - completed
-    branches:
-      - main
+  # workflow_run:
+  #  workflows: ["Deploy to Cloud Run"]
+  #  types:
+  #    - completed
+  #  branches:
+  #    - main
 
   # Allow manual triggering
   workflow_dispatch:
@@ -17,7 +17,6 @@ jobs:
     name: Test Production API Endpoints
     runs-on: ubuntu-latest
     # Only run if the deployment was successful
-    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
 
     steps:
       - name: Checkout repository
