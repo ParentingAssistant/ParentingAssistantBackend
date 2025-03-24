@@ -12,6 +12,10 @@ export class OpenAIProvider {
         model,
         messages: [
           {
+            role: 'system',
+            content: 'You are a helpful AI assistant. Provide clear and concise responses.'
+          },
+          {
             role: 'user',
             content: prompt
           }
