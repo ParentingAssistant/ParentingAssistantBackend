@@ -37,4 +37,7 @@ deployment.yaml
 Thumbs.db
 
 # Logs
-*.log 
+*.log
+
+# Firebase credentials
+scripts/*-firebase-adminsdk-*.json 
