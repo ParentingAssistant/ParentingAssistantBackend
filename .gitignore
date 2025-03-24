@@ -1,5 +1,7 @@
 # Firebase
-firebase-service-account.json
+**/firebase-service-account*.json
+**/GoogleService-Info.plist
+**/google-services.json
 
 # Build output
 dist/
@@ -17,6 +19,7 @@ yarn-error.log*
 .env.bak
 *.env.bak
 deployment.yaml
+!.env.example
 
 # IDE and editor files
 .idea/
@@ -27,4 +30,7 @@ deployment.yaml
 
 # OS files
 .DS_Store
-Thumbs.db 
+Thumbs.db
+
+# Logs
+*.log 
