@@ -8,6 +8,7 @@ import { CleanupService } from './services/cleanup.service';
 import { createRateLimiters } from './config/security';
 import mealPlanRoutes from './routes/meal-plan.routes';
 import storyRoutes from './routes/story.routes';
+import inferenceRoutes from './services/inference/inference.router';
 
 // Load environment variables
 dotenv.config();
@@ -91,6 +92,7 @@ async function startServer() {
             // Routes
             app.use('/api/meal-plans', mealPlanRoutes);
             app.use('/api/stories', storyRoutes);
+            app.use('/api/inference', inferenceRoutes);
 
             // Start server
             server = app.listen(port, () => {
