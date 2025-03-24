@@ -82,18 +82,20 @@ make_request "/api/meal-plans/generate-meal-plan" "POST" '{
 
 # Test stories endpoint
 print_header "Stories Endpoint"
-make_request "/api/stories/generate-story" "POST" '{
+make_request "/api/stories/generate-bedtime-story" "POST" '{
     "childName": "Alex",
     "theme": "friendship",
     "ageGroup": "5-7",
     "storyLength": "short",
-    "morals": ["sharing", "kindness"]
+    "includesMorals": true
 }' "Generate story" true
 
 # Test inference endpoint
 print_header "Inference Endpoint"
 make_request "/api/inference" "POST" '{
-    "prompt": "Generate a parenting tip about managing screen time for children"
+    "provider": "openai",
+    "prompt": "Generate a parenting tip about managing screen time for children",
+    "temperature": 0.7
 }' "Generate parenting tip" true
 
 echo -e "\n${GREEN}All endpoint tests completed!${NC}" 

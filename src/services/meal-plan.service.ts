@@ -41,49 +41,60 @@ export class MealPlanService {
 Dietary preferences: ${request.dietaryPreferences.join(', ')}
 Available ingredients: ${request.ingredients.join(', ')}
 
-Please provide a detailed meal plan with the following information for each meal:
-- Name of the dish
-- List of ingredients
-- Cooking instructions
-- Basic nutritional information (calories, protein, carbs, fat)
-
-Format the response as a structured JSON object with the following properties:
-- days: Array of day objects, each containing:
-  - date: string (e.g., "Day 1")
-  - meals: Array of meal objects, each containing:
-    - name: string
-    - ingredients: string[]
-    - instructions: string
-    - nutrition: { calories: number, protein: number, carbs: number, fat: number }`;
+IMPORTANT: Format your response as a valid JSON object with the following structure:
+{
+    "days": [
+        {
+            "date": "Day 1",
+            "meals": [
+                {
+                    "name": "Meal Name",
+                    "ingredients": ["ingredient 1", "ingredient 2"],
+                    "instructions": "Cooking instructions...",
+                    "nutrition": {
+                        "calories": 500,
+                        "protein": 20,
+                        "carbs": 60,
+                        "fat": 15
+                    }
+                }
+            ]
+        }
+    ]
+}`;
 
         const completion = await openai.chat.completions.create({
             model: "gpt-4",
             messages: [
                 {
                     role: "system",
-                    content: "You are a professional nutritionist and chef specialized in creating personalized meal plans."
+                    content: "You are a professional nutritionist and chef specialized in creating personalized meal plans. Always respond with valid JSON."
                 },
                 {
                     role: "user",
                     content: prompt
                 }
-            ],
-            response_format: { type: "json_object" }
+            ]
         });
 
         if (!completion.choices[0]?.message?.content) {
             throw new Error('Failed to generate meal plan: No content received from OpenAI');
         }
 
-        const mealPlanResponse = JSON.parse(completion.choices[0].message.content) as MealPlan;
-        return {
-            ...mealPlanResponse,
-            dietaryPreferences: request.dietaryPreferences,
-            ingredients: request.ingredients,
-            daysCount,
-            mealsPerDay,
-            generatedAt: Date.now()
-        };
+        try {
+            const mealPlanResponse = JSON.parse(completion.choices[0].message.content) as MealPlan;
+            return {
+                ...mealPlanResponse,
+                dietaryPreferences: request.dietaryPreferences,
+                ingredients: request.ingredients,
+                daysCount,
+                mealsPerDay,
+                generatedAt: Date.now()
+            };
+        } catch (error) {
+            console.error('Error parsing meal plan response:', error);
+            throw new Error('Failed to parse meal plan response from OpenAI');
+        }
     }
 
     public async generateMealPlan(request: MealPlanRequest): Promise<MealPlan> {
