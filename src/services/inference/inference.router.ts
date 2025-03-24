@@ -6,7 +6,7 @@ import { createRateLimiters } from '../../config/security';
 const router = Router();
 const { aiLimiter } = createRateLimiters();
 
-router.post('/inference',
+router.post('/',
   authenticateUser,
   aiLimiter,
   handleInferenceRequest

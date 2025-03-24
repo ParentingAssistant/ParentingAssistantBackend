@@ -47,18 +47,21 @@ The story should be engaging, age-appropriate, and include:
 3. A clear beginning, middle, and end
 4. ${request.includesMorals ? 'Clear moral lessons or values' : 'Entertainment value'}
 
-Format the response as a structured JSON object matching this interface:
+IMPORTANT: Format your response as a valid JSON object with the following structure:
 {
-    title: string;
-    content: string;
-    theme: string;
-    targetAge: string;
-    morals?: string[];
-    characters: Array<{ name: string; role: string; }>;
-    metadata: {
-        length: number; // Word count
-        readingTime: number; // Minutes
-        difficulty: 'easy' | 'medium' | 'hard';
+    "title": "Story Title",
+    "content": "Story content...",
+    "theme": "${request.theme}",
+    "targetAge": "${request.ageGroup || 'any'}",
+    "morals": ["Moral 1", "Moral 2"],
+    "characters": [
+        {"name": "Character 1", "role": "Main character"},
+        {"name": "Character 2", "role": "Supporting character"}
+    ],
+    "metadata": {
+        "length": 500,
+        "readingTime": 5,
+        "difficulty": "medium"
     }
 }`;
 
@@ -67,25 +70,29 @@ Format the response as a structured JSON object matching this interface:
             messages: [
                 {
                     role: "system",
-                    content: "You are a creative children's story writer, skilled at crafting engaging and age-appropriate bedtime stories."
+                    content: "You are a creative children's story writer, skilled at crafting engaging and age-appropriate bedtime stories. Always respond with valid JSON."
                 },
                 {
                     role: "user",
                     content: prompt
                 }
-            ],
-            response_format: { type: "json_object" }
+            ]
         });
 
         if (!completion.choices[0]?.message?.content) {
             throw new Error('Failed to generate story: No content received from OpenAI');
         }
 
-        const storyResponse = JSON.parse(completion.choices[0].message.content) as Story;
-        return {
-            ...storyResponse,
-            generatedAt: Date.now()
-        };
+        try {
+            const storyResponse = JSON.parse(completion.choices[0].message.content) as Story;
+            return {
+                ...storyResponse,
+                generatedAt: Date.now()
+            };
+        } catch (error) {
+            console.error('Error parsing story response:', error);
+            throw new Error('Failed to parse story response from OpenAI');
+        }
     }
 
     public async generateStory(request: StoryRequest): Promise<Story> {
