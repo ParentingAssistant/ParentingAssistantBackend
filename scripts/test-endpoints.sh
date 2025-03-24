@@ -4,6 +4,7 @@
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Configuration
@@ -15,9 +16,86 @@ TIMEOUT=10
 SERVICE_URL=${SERVICE_URL:-"https://parenting-assistant-backend-h5engjskkq-uc.a.run.app"}
 FIREBASE_TOKEN=${FIREBASE_TOKEN:-""}
 
+# Function to show help
+show_help() {
+    echo -e "${BLUE}Parenting Assistant Backend API Test Script${NC}"
+    echo -e "This script tests the API endpoints of the Parenting Assistant Backend service."
+    echo
+    echo -e "${YELLOW}Usage:${NC}"
+    echo -e "  ./$(basename "$0") [options]"
+    echo
+    echo -e "${YELLOW}Options:${NC}"
+    echo -e "  -h, --help                 Show this help message"
+    echo -e "  -u, --url URL              Set the service URL (default: $SERVICE_URL)"
+    echo -e "  -t, --token TOKEN          Set the Firebase token for authentication"
+    echo -e "  -s, --skip-auth            Skip authentication check prompt"
+    echo
+    echo -e "${YELLOW}Environment Variables:${NC}"
+    echo -e "  SERVICE_URL                Service URL (overridden by --url)"
+    echo -e "  FIREBASE_TOKEN             Firebase token (overridden by --token)"
+    echo
+    echo -e "${YELLOW}Examples:${NC}"
+    echo -e "  ./$(basename "$0") --url http://localhost:8080"
+    echo -e "  ./$(basename "$0") --token \"your-firebase-token\""
+    echo -e "  SERVICE_URL=http://localhost:8080 FIREBASE_TOKEN=\"token\" ./$(basename "$0")"
+    echo
+}
+
+# Parse command line arguments
+parse_args() {
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            -h|--help)
+                show_help
+                exit 0
+                ;;
+            -u|--url)
+                SERVICE_URL="$2"
+                shift 2
+                ;;
+            -t|--token)
+                FIREBASE_TOKEN="$2"
+                shift 2
+                ;;
+            -s|--skip-auth)
+                SKIP_AUTH_CHECK=true
+                shift
+                ;;
+            *)
+                echo -e "${RED}Unknown option: $1${NC}"
+                show_help
+                exit 1
+                ;;
+        esac
+    done
+}
+
 # Function to print with timestamp
 log() {
     echo -e "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
+}
+
+# Function to check required environment variables
+check_requirements() {
+    if [ -z "$FIREBASE_TOKEN" ] && [ "$SKIP_AUTH_CHECK" != "true" ]; then
+        log "${YELLOW}⚠ Warning: No Firebase token provided. Authenticated tests will fail.${NC}"
+        log "${BLUE}To run authenticated tests:${NC}"
+        log "1. Get a valid Firebase ID token"
+        log "2. Export it: export FIREBASE_TOKEN='your-token-here'"
+        log "3. Run this script again"
+        
+        read -p "Do you want to continue without authentication? (y/n): " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            log "${RED}Test canceled.${NC}"
+            exit 1
+        fi
+    fi
+
+    log "${GREEN}✓ Service URL:${NC} $SERVICE_URL"
+    if [ ! -z "$FIREBASE_TOKEN" ]; then
+        log "${GREEN}✓ Firebase token:${NC} [Provided]"
+    fi
 }
 
 # Function to make HTTP requests with retry logic
@@ -117,6 +195,40 @@ main() {
     if ! make_request "/api/stories/generate-bedtime-story" "POST" "$story_data" "Generate Bedtime Story"; then
         ((failed_tests++))
     fi
+    
+    # Test 5: Inference with OpenAI
+    ((total_tests++))
+    local inference_openai_data='{
+        "provider": "openai",
+        "prompt": "Write a one-sentence parenting tip.",
+        "temperature": 0.7
+    }'
+    if ! make_request "/api/inference" "POST" "$inference_openai_data" "Inference with OpenAI"; then
+        ((failed_tests++))
+    fi
+    
+    # Test 6: Inference with HuggingFace
+    ((total_tests++))
+    local inference_huggingface_data='{
+        "provider": "huggingface",
+        "prompt": "Write a one-sentence parenting tip.",
+        "model": "mistralai/Mistral-7B-Instruct-v0.2"
+    }'
+    if ! make_request "/api/inference" "POST" "$inference_huggingface_data" "Inference with HuggingFace"; then
+        ((failed_tests++))
+    fi
+    
+    # Test 7: Inference with TogetherAI
+    ((total_tests++))
+    local inference_togetherai_data='{
+        "provider": "togetherai",
+        "prompt": "Write a one-sentence parenting tip.",
+        "temperature": 0.7,
+        "maxTokens": 50
+    }'
+    if ! make_request "/api/inference" "POST" "$inference_togetherai_data" "Inference with TogetherAI"; then
+        ((failed_tests++))
+    fi
 
     # Summary
     log "\n${YELLOW}Test Summary:${NC}"
@@ -133,11 +245,11 @@ main() {
     fi
 }
 
-# Check if Firebase token is provided
-if [ -z "$FIREBASE_TOKEN" ]; then
-    log "${YELLOW}⚠ Warning: No Firebase token provided. Some tests may fail.${NC}"
-    log "Set the FIREBASE_TOKEN environment variable to run authenticated tests."
-fi
+# Parse command line arguments
+parse_args "$@"
+
+# Check requirements before running tests
+check_requirements
 
 # Execute main function
 main 
