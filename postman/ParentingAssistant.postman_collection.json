@@ -6,6 +6,28 @@
   },
   "item": [
     {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/health",
+          "host": ["{{base_url}}"],
+          "path": ["health"]
+        },
+        "description": "Check if the API is healthy and running"
+      },
+      "response": [
+        {
+          "name": "Success Response",
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "body": "{\n  \"status\": \"ok\"\n}"
+        }
+      ]
+    },
+    {
       "name": "Generate Meal Plan",
       "request": {
         "method": "POST",
@@ -24,26 +46,46 @@
           "raw": "{\n  \"dietaryPreferences\": [\"vegetarian\", \"gluten-free\"],\n  \"ingredients\": [\"quinoa\", \"chickpeas\", \"sweet potato\"],\n  \"daysCount\": 3,\n  \"mealsPerDay\": 2\n}"
         },
         "url": {
-          "raw": "{{base_url}}/api/generate-meal-plan",
+          "raw": "{{base_url}}/api/meal-plan/generate-meal-plan",
           "host": ["{{base_url}}"],
-          "path": ["api", "generate-meal-plan"]
+          "path": ["api", "meal-plan", "generate-meal-plan"]
         },
         "description": "Generate a personalized meal plan based on preferences"
       },
       "response": [
         {
           "name": "Success Response",
-          "originalRequest": {
-            "method": "POST",
-            "header": [],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"dietaryPreferences\": [\"vegetarian\"],\n  \"ingredients\": [\"quinoa\"],\n  \"daysCount\": 1,\n  \"mealsPerDay\": 2\n}"
-            }
-          },
           "status": "OK",
           "code": 200,
-          "_postman_previewlanguage": "json"
+          "_postman_previewlanguage": "json",
+          "body": "{\n  \"status\": \"success\",\n  \"data\": {\n    \"days\": [\n      {\n        \"date\": \"Day 1\",\n        \"meals\": [\n          {\n            \"name\": \"Quinoa Buddha Bowl\",\n            \"ingredients\": [\"quinoa\", \"chickpeas\", \"sweet potato\", \"kale\", \"avocado\"],\n            \"instructions\": \"1. Cook quinoa...\",\n            \"nutrition\": {\n              \"calories\": 450,\n              \"protein\": 15,\n              \"carbs\": 65,\n              \"fat\": 18\n            }\n          }\n        ]\n      }\n    ],\n    \"dietaryPreferences\": [\"vegetarian\", \"gluten-free\"],\n    \"ingredients\": [\"quinoa\", \"chickpeas\", \"sweet potato\"],\n    \"daysCount\": 3,\n    \"mealsPerDay\": 2,\n    \"generatedAt\": 1742943924988\n  }\n}"
+        }
+      ]
+    },
+    {
+      "name": "Get Meal Plan History",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{firebase_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/meal-plan/history",
+          "host": ["{{base_url}}"],
+          "path": ["api", "meal-plan", "history"]
+        },
+        "description": "Get the user's meal plan history"
+      },
+      "response": [
+        {
+          "name": "Success Response",
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "body": "{\n  \"status\": \"success\",\n  \"data\": {\n    \"mealPlans\": [\n      {\n        \"id\": \"plan123\",\n        \"createdAt\": \"2024-03-24T22:23:12.345Z\",\n        \"dietaryPreferences\": [\"vegetarian\"],\n        \"ingredients\": [\"quinoa\"],\n        \"daysCount\": 1,\n        \"mealsPerDay\": 2,\n        \"mealPlan\": {\n          \"days\": [\n            {\n              \"day\": 1,\n              \"meals\": [\n                {\n                  \"name\": \"Quinoa Buddha Bowl\",\n                  \"ingredients\": [\"quinoa\", \"chickpeas\", \"sweet potato\", \"kale\", \"avocado\"],\n                  \"instructions\": \"1. Cook quinoa...\",\n                  \"nutritionalInfo\": {\n                    \"calories\": 450,\n                    \"protein\": \"15g\",\n                    \"carbs\": \"65g\",\n                    \"fat\": \"18g\"\n                  }\n                }\n              ]\n            }\n          ]\n        }\n      }\n    ]\n  }\n}"
         }
       ]
     },
@@ -66,26 +108,46 @@
           "raw": "{\n  \"childName\": \"Emma\",\n  \"theme\": \"space adventure\",\n  \"ageGroup\": \"5-8\",\n  \"storyLength\": \"medium\",\n  \"includesMorals\": true\n}"
         },
         "url": {
-          "raw": "{{base_url}}/api/generate-bedtime-story",
+          "raw": "{{base_url}}/api/story/generate-bedtime-story",
           "host": ["{{base_url}}"],
-          "path": ["api", "generate-bedtime-story"]
+          "path": ["api", "story", "generate-bedtime-story"]
         },
         "description": "Generate a personalized bedtime story"
       },
       "response": [
         {
           "name": "Success Response",
-          "originalRequest": {
-            "method": "POST",
-            "header": [],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"childName\": \"Emma\",\n  \"theme\": \"space adventure\",\n  \"ageGroup\": \"5-8\",\n  \"storyLength\": \"medium\",\n  \"includesMorals\": true\n}"
-            }
-          },
           "status": "OK",
           "code": 200,
-          "_postman_previewlanguage": "json"
+          "_postman_previewlanguage": "json",
+          "body": "{\n  \"status\": \"success\",\n  \"data\": {\n    \"story\": {\n      \"title\": \"Emma's Space Adventure\",\n      \"content\": \"Once upon a time, in a galaxy not so far away...\",\n      \"moral\": \"Always believe in yourself, even when facing the unknown\",\n      \"ageGroup\": \"5-8\",\n      \"estimatedReadingTime\": \"5 minutes\"\n    }\n  }\n}"
+        }
+      ]
+    },
+    {
+      "name": "Get Story History",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{firebase_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/story/history",
+          "host": ["{{base_url}}"],
+          "path": ["api", "story", "history"]
+        },
+        "description": "Get the user's bedtime story history"
+      },
+      "response": [
+        {
+          "name": "Success Response",
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "body": "{\n  \"status\": \"success\",\n  \"data\": {\n    \"stories\": [\n      {\n        \"id\": \"story123\",\n        \"createdAt\": \"2024-03-24T22:23:12.345Z\",\n        \"childName\": \"Emma\",\n        \"theme\": \"space adventure\",\n        \"ageGroup\": \"5-8\",\n        \"storyLength\": \"medium\",\n        \"includesMorals\": true,\n        \"story\": {\n          \"title\": \"Emma's Space Adventure\",\n          \"content\": \"Once upon a time, in a galaxy not so far away...\",\n          \"moral\": \"Always believe in yourself, even when facing the unknown\",\n          \"ageGroup\": \"5-8\",\n          \"estimatedReadingTime\": \"5 minutes\"\n        }\n      }\n    ]\n  }\n}"
         }
       ]
     }
@@ -93,11 +155,13 @@
   "variable": [
     {
       "key": "base_url",
-      "value": "http://localhost:3000"
+      "value": "https://parenting-assistant-backend-h5engjskkq-uc.a.run.app",
+      "type": "string"
     },
     {
       "key": "firebase_token",
-      "value": "your-firebase-token"
+      "value": "your-firebase-token",
+      "type": "string"
     }
   ]
 } 

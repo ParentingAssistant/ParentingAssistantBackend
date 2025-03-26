@@ -16,33 +16,35 @@ const RETRY_DELAY = 3000; // 3 seconds
 const redisClient = createClient({
     url: process.env.REDIS_URL,
     socket: {
-        // Only enable TLS for production (Upstash)
-        ...(process.env.REDIS_URL?.includes('upstash.io') ? {
-            tls: true,
-            rejectUnauthorized: true,
-            reconnectStrategy: (retries) => {
-                if (retries > 10) {
-                    console.error('Max Redis reconnection attempts reached');
-                    return new Error('Max reconnection attempts reached');
-                }
-                return Math.min(retries * 1000, 10000); // Exponential backoff up to 10 seconds
+        tls: true,
+        rejectUnauthorized: false, // Required for Upstash
+        connectTimeout: 15000, // Increased timeout
+        keepAlive: 5000, // Increased keepalive
+        reconnectStrategy: (retries: number, cause: Error) => {
+            console.log(`Redis reconnection attempt ${retries + 1}/${MAX_CONNECTION_ATTEMPTS}`);
+            if (retries >= MAX_CONNECTION_ATTEMPTS) {
+                console.error('Max Redis retry attempts reached:', cause);
+                return false; // Stop retrying
             }
-        } : {
-            reconnectStrategy: (retries) => {
-                if (retries > 10) {
-                    console.error('Max Redis reconnection attempts reached');
-                    return new Error('Max reconnection attempts reached');
-                }
-                return Math.min(retries * 1000, 10000); // Exponential backoff up to 10 seconds
-            }
-        })
+            // Exponential backoff with max of 10 seconds
+            return Math.min(Math.pow(2, retries) * 1000, 10000);
+        }
     }
 });
 
 export const initializeRedis = async (): Promise<void> => {
-    if (isConnected) {
+    if (isConnected && redisClient.isOpen) {
         console.log('Redis is already connected');
         return;
+    }
+
+    // If client is open but not connected, close it first
+    if (redisClient.isOpen) {
+        try {
+            await redisClient.disconnect();
+        } catch (error) {
+            console.warn('Error disconnecting Redis client:', error);
+        }
     }
 
     try {
@@ -50,34 +52,18 @@ export const initializeRedis = async (): Promise<void> => {
         redisClient.on('error', (error) => {
             console.error('Redis error:', error);
             isConnected = false;
-            connectionAttempts++;
-
-            if (connectionAttempts >= MAX_CONNECTION_ATTEMPTS) {
-                console.error(`Failed to connect to Redis after ${MAX_CONNECTION_ATTEMPTS} attempts`);
-                console.warn('Continuing without Redis - using memory store fallback');
-                return;
-            }
-
-            // Attempt to reconnect
-            setTimeout(async () => {
-                console.log(`Attempting to reconnect to Redis (attempt ${connectionAttempts}/${MAX_CONNECTION_ATTEMPTS})...`);
-                try {
-                    await redisClient.connect();
-                } catch (error) {
-                    console.error('Redis reconnection failed:', error);
-                }
-            }, RETRY_DELAY);
         });
 
         redisClient.on('connect', () => {
             console.log('Redis client connected');
-            connectionAttempts = 0; // Reset connection attempts on successful connection
+            connectionAttempts = 0;
+            isConnected = true;
         });
 
         redisClient.on('ready', () => {
             console.log('Redis client ready');
             isConnected = true;
-            connectionAttempts = 0; // Reset connection attempts on ready
+            connectionAttempts = 0;
         });
 
         redisClient.on('reconnecting', () => {
@@ -90,25 +76,38 @@ export const initializeRedis = async (): Promise<void> => {
             isConnected = false;
         });
 
-        // Connect to Redis
-        await redisClient.connect();
-        
-        // Test the connection
-        await redisClient.ping();
-        console.log('Redis connection test successful');
-        isConnected = true;
-    } catch (error) {
-        console.error('Error connecting to Redis:', error);
-        isConnected = false;
-        
-        if (connectionAttempts < MAX_CONNECTION_ATTEMPTS) {
-            connectionAttempts++;
-            console.log(`Retrying Redis connection (attempt ${connectionAttempts}/${MAX_CONNECTION_ATTEMPTS})...`);
-            await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
-            return initializeRedis();
-        } else {
-            console.warn('Failed to connect to Redis - using memory store fallback');
+        // Try to connect with a timeout matching the socket timeout
+        const connectWithTimeout = async () => {
+            try {
+                await Promise.race([
+                    redisClient.connect(),
+                    new Promise((_, reject) => 
+                        setTimeout(() => reject(new Error('Redis connection timeout')), 15000)
+                    )
+                ]);
+                
+                // Test the connection
+                await redisClient.ping();
+                console.log('Redis connection test successful');
+                isConnected = true;
+            } catch (error) {
+                console.error('Redis connection failed:', error);
+                isConnected = false;
+                throw error;
+            }
+        };
+
+        // Initial connection attempt
+        try {
+            await connectWithTimeout();
+        } catch (error) {
+            console.error('Initial Redis connection failed:', error);
+            // Don't block server startup on Redis failure
+            console.warn('Server will continue without Redis - using memory store fallback');
         }
+    } catch (error) {
+        console.error('Error in Redis initialization:', error);
+        console.warn('Server will continue without Redis - using memory store fallback');
     }
 };
 
