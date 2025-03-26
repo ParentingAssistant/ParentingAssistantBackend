@@ -43,15 +43,15 @@ Available ingredients: ${request.ingredients.join(', ')}
 
 IMPORTANT: Format your response as a valid JSON object with the following structure:
 {
-    "days": [
+    "plan": [
         {
-            "date": "Day 1",
+            "day": 1,
             "meals": [
                 {
                     "name": "Meal Name",
                     "ingredients": ["ingredient 1", "ingredient 2"],
                     "instructions": "Cooking instructions...",
-                    "nutrition": {
+                    "nutritionalInfo": {
                         "calories": 500,
                         "protein": 20,
                         "carbs": 60,
